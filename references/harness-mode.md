@@ -83,37 +83,11 @@ The orchestrator owns all test execution and bisection — running them here wou
 
 ### 8. Output structured JSON
 
-At the end of the response, emit the iteration results in a `json:harness-output` fenced block. `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract — field names, types, which are required, and what `no_actionable_fixes` means — and `test/harness-common/fixtures/harness-output.golden.json` is a complete worked instance. The shape:
+At the end of the response, emit the iteration results in one `json:harness-output` fenced block.
 
-````
-```json:harness-output
-{
-  "iteration": <number>,
-  "new_findings": [
-    {
-      "file": "<path>",
-      "line": <number>,
-      "end_line": <number>,
-      "category": "<category from the agent finding — skill-specific>",
-      "guideline": "<specific rule or 'General: ...'>",
-      "summary": "<one-sentence, max 120 chars>",
-      "fix_description": "<brief description of the fix applied>",
-      "severity": "<Critical | Warning | Suggestion>",
-      "confidence": "<High | Medium | Low>",
-      "agent": "<agent-name>",
-      "pre_edit_content": "<exact original code>",
-      "post_edit_content": "<exact replacement code>"
-    }
-  ],
-  "fixes_applied": [
-    <same structure as new_findings — the subset that were actually applied via Edit/MultiEdit>
-  ],
-  "fixes_skipped_persistent": ["<id of findings skipped due to persistent status>"],
-  "no_new_findings": <true if zero new findings discovered>,
-  "no_actionable_fixes": <true only when no finding captured a swap pair — see the schema>
-}
-```
-````
+Read `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` — it is the contract, and it carries field names, types, which fields are required, the enums, and what `no_actionable_fixes` means. `$CLAUDE_PLUGIN_ROOT/test/harness-common/fixtures/harness-output.golden.json` is a complete worked instance to copy the shape from.
+
+The one thing the schema cannot state: `category` values are skill-specific — use the category the agent that raised the finding assigned it.
 
 ### 9. Exit
 

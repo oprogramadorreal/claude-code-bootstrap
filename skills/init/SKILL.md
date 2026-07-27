@@ -61,7 +61,7 @@ On **Correct**: ask what to change, update the detection results, and re-present
 
 ### Step 1b: Documentation audit (only when the inventory found existing docs)
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/init/agents/documentation-auditor.md` and launch 1 `general-purpose` agent with that prompt, prepended with the same "Agent Constraints" section plus the Detection Results from Step 1 (same prompt-assembly rule). Present the agent's **Audit Report** to the user.
+`$CLAUDE_PLUGIN_ROOT/skills/init/agents/documentation-auditor.md` defines the audit — its classification levels, its standard of proof, and its Audit Report shape. When the inventory found only a handful of small docs, **run it yourself**: reading six files and classifying them is a handful of tool calls, and the content stays in context for the Step 2 edits that follow. Delegate to 1 `general-purpose` agent with that prompt when the doc surface is large enough to be worth isolating, prepended with the same "Agent Constraints" section plus the Detection Results from Step 1 (same prompt-assembly rule). Either way, present the **Audit Report** to the user.
 
 **Standard of proof:** only content directly contradicted by source code is Outdated. When a user-added item looks outdated, confirm via `AskUserQuestion` before discarding — the user may have context the codebase doesn't show.
 

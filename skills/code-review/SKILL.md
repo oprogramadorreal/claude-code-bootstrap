@@ -75,7 +75,11 @@ Present a brief context summary (docs loaded, docs missing with fallback status,
 
 ## Step 5: Parallel Multi-Agent Review (5–7 agents)
 
-Launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each agent below covers a lens the others do not, so dropping one leaves that category unreviewed; the conditional rules are how the fan-out shrinks on a narrow diff.
+The table below is the list of lenses this review has to cover. How many contexts you cover them in is yours to size.
+
+**On a small diff — roughly 3 files or fewer and under 150 changed lines — apply the lenses yourself in one pass.** Five subagents over a five-line change each re-read the project docs and the same diff to produce findings you would reach directly; read the agent prompt files for their criteria and work through them. Fan out when the diff is large enough that one context cannot hold it with the docs, when the lenses need to read genuinely different parts of the tree, or in harness mode where the iteration's context is fresh and disposable.
+
+When you do fan out, launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each agent covers a lens the others do not, so dropping one leaves that category unreviewed; the conditional rules below are how the fan-out shrinks on a narrow diff.
 
 | Agent | Role | Prompt file |
 |-------|------|-------------|

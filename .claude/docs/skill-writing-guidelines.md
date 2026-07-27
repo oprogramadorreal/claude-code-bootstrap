@@ -26,6 +26,7 @@ Current models already do these. Instructing them again costs tokens and can deg
 
 - **Self-verification** — no "double-check", "verify before responding", or a final verification step appended to a task. What *is* worth instructing is a check against something external the model cannot self-assess: run the suite, validate against the schema, `diff` the installed file against its template. `references/harness-mode.md`'s "not even to 'verify' your own fixes" is the model to copy.
 - **Subagent verification of the skill's own output** — delegation is for large, genuinely independent work. An agent reviewing what this conversation just wrote has less context, not more. Recommend `/optimus:code-review` instead of inlining a private copy of it.
+- **Delegating what the skill could do inline** — a fan-out that fires regardless of input size spawns agents on a three-file diff. Give every agent step a floor below which the skill does the work itself; the fan-out earns its cost on genuinely independent tracks, or when the material would crowd out the step that follows.
 - **Per-step narration** — describe the cadence you want (one line up front, updates on something important, outcome first at the end) rather than mandating a report after every step.
 - **Conservatism in analysis agents** — "only report what you're confident about" makes the model report less. Have agents report with an honest confidence label and filter in the consuming step, where the code is actually available to check against.
 
@@ -43,8 +44,9 @@ Current models already do these. Instructing them again costs tokens and can deg
 
 - Imperative steps, consistent terminology (one term per concept), no time-sensitive content.
 - Output templates stay plain: headings, bold, blockquotes — no decorative emoji, no hand-rolled "[Step N/M]" progress lines.
-- For parallel-agent steps, say to launch them in a single message — that instruction is about parallelism, not head count. Justify each agent by the lens it covers and let the conditional rules shrink the fan-out; don't write rules that forbid the model from sizing it.
+- For parallel-agent steps, say to launch them in a single message — that instruction is about parallelism, not head count. Cap the fan-out rather than mandate it: current models delegate readily on their own, so a step that always spawns N agents will spawn them on inputs one pass would cover. Name the lenses that must be covered, give a floor below which the skill does them inline, and let the model size the rest.
 - Don't instruct Claude to narrate or transcribe its reasoning; ask for conclusions and rationale.
+- Calibrate authored deliverables. A skill that writes a document states its target length once, where the template is defined (`brainstorm`'s "keep the spec under 200 lines" is the model). Current models write long by default, and an uncalibrated document fills with filler sections and restated summaries.
 
 ## Closing a skill
 

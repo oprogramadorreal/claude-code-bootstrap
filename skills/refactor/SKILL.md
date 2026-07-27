@@ -53,7 +53,9 @@ Analyze highest-churn areas first; for full-project scope on a large codebase, s
 
 ## Step 4: Parallel analysis (4 agents)
 
-Launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each covers a lens the others do not, so dropping one leaves that category unanalyzed.
+The four lenses below must all be covered. Size the fan-out to the scope: **for a handful of files, analyze them yourself in one pass** — four subagents over three files each re-read CLAUDE.md and the guideline docs to reach findings you can reach directly. Fan out for a directory or wider, where the lenses genuinely read different parts of the tree.
+
+When you do fan out, launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel — separate messages serialize them for no benefit.
 
 | Agent | Prompt file | Finds |
 |---|---|---|

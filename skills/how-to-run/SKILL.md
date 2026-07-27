@@ -38,7 +38,9 @@ If "Correct first": `AskUserQuestion` — header "Corrections", question "What s
 
 ## Step 2: Audit existing docs (agent)
 
-Launch 1 `general-purpose` Agent tool call whose prompt is, in order: the Context Detection Results from Step 1, the Agent Constraints section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`, the shared-constraints file, and the prompt from `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/how-to-run-auditor.md`. Every file except `HOW-TO-RUN.md` is hypotheses only: facts contradicting the codebase are logged as outdated and reported in Step 6 — never corrected in their source files. Wait for the agent's **How-to-Run Audit Results**.
+`$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/how-to-run-auditor.md` defines this audit — the file list, the classification levels, and the **How-to-Run Audit Results** shape that Steps 3, 3a and 6 consume. It is a fixed, short list of markdown files, so **run it yourself** unless those files are large enough that pulling them into this context would crowd out Step 4's generation work; then delegate to 1 `general-purpose` Agent tool call whose prompt is, in order: the Context Detection Results from Step 1, the Agent Constraints section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`, the shared-constraints file, and the auditor prompt.
+
+Every file except `HOW-TO-RUN.md` is hypotheses only: facts contradicting the codebase are logged as outdated and reported in Step 6 — never corrected in their source files.
 
 ## Step 3: Assess and plan
 

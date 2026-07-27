@@ -24,7 +24,9 @@ Load `.claude/CLAUDE.md`, `.claude/docs/coding-guidelines.md`, and `testing.md` 
 
 ## Step 2: Discovery & Coverage Analysis (agent-assisted)
 
-For each subproject (or the single project), read `$CLAUDE_PLUGIN_ROOT/skills/unit-test/agents/test-infrastructure-analyzer.md` and launch one `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. Under `HARNESS_MODE_INLINE` on cycles 2+, also prepend the cycle context block from the "Run discovery and coverage analysis" section of coverage-harness-mode.md.
+`$CLAUDE_PLUGIN_ROOT/skills/unit-test/agents/test-infrastructure-analyzer.md` defines what this step has to produce. On a small or path-scoped project — roughly under 100 source files — **run it yourself**: surveying test files, framework, runner command and coverage tooling, then running the suite and coverage, is a handful of tool calls, and doing it inline keeps the file list you are about to write tests against in context.
+
+Delegate when surveying the tree inline would flood this context: for each subproject (or the single project), launch one `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. Under `HARNESS_MODE_INLINE` on cycles 2+, also prepend the cycle context block from the "Run discovery and coverage analysis" section of coverage-harness-mode.md.
 
 Present the agent's Discovery Results and Coverage Analysis to the user.
 
