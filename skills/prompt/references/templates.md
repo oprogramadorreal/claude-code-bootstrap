@@ -297,7 +297,7 @@ Run these in order. Each output feeds the next.
 - Plan-mode Claude reads the project's CLAUDE.md and explores the codebase on its own — the prompt tells it WHAT to figure out, not pre-answers
 - Verify and optimize user input: read referenced files to confirm findings, ask if something seems incorrect, synthesize into clear context — do not copy verbatim. Resolve entity names to paths, but do not explore code structure or internals beyond what the user provided — never pre-do plan-mode's exploration
 - Preserve the user's explicit methodology instructions — if the user says to search the web, verify assumptions, ask questions, or use specific tools, carry those instructions into the prompt (typically in "What to Figure Out"). Do not silently drop them during synthesis
-- NEVER include plan-mode-redundant guardrails ("YOU ARE IN PLAN MODE", "DO NOT EDIT CODE", "read-only", "do not execute") — plan mode enforces read-only automatically
+- NEVER include plan-mode-redundant guardrails ("YOU ARE IN PLAN MODE", "DO NOT EDIT CODE", "read-only", "do not execute") — plan mode enforces read-only automatically. One carve-out: the review-loop block in `$CLAUDE_PLUGIN_ROOT/skills/brainstorm/references/plan-mode-handoff.md` keeps its "plan mode is read-only" clause, where it explains the toggle-off-then-follow-up write mechanic rather than guardrailing exploration
 
 ```
 ## Goal
@@ -336,7 +336,7 @@ The plan should include:
 *For Claude Code dynamic workflows — produces a single NATURAL-LANGUAGE PROMPT the user pastes into an active Claude Code session to launch a workflow of REAL parallel subagents (exempt from hard rule 2 — the passes are real, not simulated). NEVER author a .js workflow script, and do NOT prescribe the workflow's phases or agent counts — describe the task, outcome, and constraints; Claude Code designs the orchestration and writes the script.*
 
 - Express orchestration as **intent**, in natural language — open with "Run a workflow to…" (the scaffold below does). The prompt must clearly ask for a workflow of parallel agents, not a turn-by-turn task
-- Describe the task, the quality bar (e.g. "cross-check findings before reporting"), and the required output. A pattern-type hint (fan-out / pipeline / adversarial-verification) is optional preference, never a prescribed phase plan with agent counts
+- Describe the task, the quality bar (e.g. "cross-check findings before reporting"), and the required output. A pattern-type hint (fan-out / pipeline / cross-agent corroboration) is optional preference, never a prescribed phase plan with agent counts
 - Scope is MANDATORY (cost + runaway risk): bound the target set and give an early-stop condition. The runtime auto-caps each run at 16 concurrent / 1,000 total agents — fixed limits, not knobs the prompt sets; the prompt's job is only to keep the target set from sprawling
 - Permissions: workflow subagents run with edits auto-approved (acceptEdits) regardless of session mode. For analysis/audit work the prompt MUST say "read-only: do not edit, write, move, or delete any file; report findings only." (Opposite of Template M, which omits guardrails because plan mode enforces read-only)
 - Do NOT put an approval or cost line in the prompt — Claude Code shows a launch-time approval with the planned phases on its own. Tell the *user* about the approval gate and token cost in the SKILL.md Step 7 handoff instead
@@ -348,7 +348,7 @@ Desired outcome: [what a good result looks like — the deliverable's purpose, n
 
 You design the orchestration — decide the phases, how many agents, and how they divide and (where useful) cross-check the work. I'm giving you the task, the constraints, and the quality bar; you write the script and choose the shape.
 
-Quality bar: [intent only — e.g. "be thorough: cover every item in scope"; "cross-check / verify findings before reporting and drop anything you can't confirm"; "approach this from several independent angles and reconcile them"]. Don't just run more agents — apply whatever verification makes the result trustworthy.
+Quality bar: [intent only — e.g. "be thorough: cover every item in scope"; "have findings corroborated by an agent that did not produce them, and drop what corroboration cannot confirm"; "approach this from several independent angles and reconcile them"]. Don't just run more agents — apply whatever verification makes the result trustworthy.
 
 Scope:
 - In scope: [explicit targets].  Out of scope: [skip].
