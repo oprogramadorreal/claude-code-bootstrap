@@ -22,7 +22,6 @@ Always produce a Conventional Commits message, regardless of the repository's ex
 
 - Types: `feat`, `fix`, `refactor`, `docs`, `style`, `test`, `chore` (includes build, CI, dependencies), `perf`
 - Subject under 72 characters, imperative mood; add a body only when the subject alone is insufficient
-- Attribution trailers follow the harness: `/optimus:permissions` sets `includeCoAuthoredBy: false` in `.claude/settings.json`, so Claude Code adds none. Don't add one by hand either way — the setting owns this decision, not the commit message.
 
 ## Splitting
 
