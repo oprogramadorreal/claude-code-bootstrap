@@ -30,7 +30,7 @@ Part of the [optimus](https://github.com/oprogramadorreal/optimus-claude) plugin
 1. **Detects project context** — tech stack, package manager, structure (single / monorepo / multi-repo workspace), existing docs, test infrastructure, skill-authoring stack (offers scaffolding first in empty directories)
 2. **Audits existing documentation** (if present) — you choose what to update; user-added content survives even "Fresh start"
 3. **Creates directory structure** — `.claude/docs/`, `.claude/hooks/`
-4. **Generates CLAUDE.md** — WHAT/WHY/HOW, <=60 lines (soft limit when preserving user content)
+4. **Generates CLAUDE.md** — identity, commands, a doc-routing table, and the gotchas detection turned up; <=60 lines (soft limit when preserving user content)
 5. **Installs formatter hooks** — per detected stack, asking before installing anything new
 6. **Sets up test infrastructure** — framework/coverage install (with approval), health check, testing docs
 7. **Creates scoped documentation** — coding guidelines (always); styling, architecture, skill-writing guidelines (when detected)

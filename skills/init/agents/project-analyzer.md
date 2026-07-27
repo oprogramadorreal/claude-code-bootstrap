@@ -28,6 +28,10 @@ Read these reference files before starting (the dispatcher has resolved the path
 
 9. **Skill-authoring detection:** Check whether the project authors markdown instructions for an AI agent as part of its stack (Claude Code plugin, Codex skill repo, prompt library, custom agent framework, etc.). The structural signal is: a directory named `skills/`, `agents/`, `prompts/`, `commands/`, or `instructions/` exists AND contains ≥2 subdirectories AND **every** such subdirectory contains a file named `SKILL.md`, `AGENT.md`, `PROMPT.md`, `COMMAND.md`, or `INSTRUCTION.md` (case-insensitive). This signals that the project's "source code" includes markdown instruction files that require a different review lens than code. Apply the check at these roots, in order: the repo root (single-project and monorepo); and for monorepos, also at each detected subproject root — if any match, the repo has a skill-authoring stack. Report `yes` with the detected directory name(s) and the root(s) where the match occurred, or `no`.
 
+10. **Hunt for gotchas.** This is the one detection task whose output goes straight into CLAUDE.md, which is loaded into every conversation — so it is the only task where finding nothing is a good answer. A gotcha is something that would bite a capable engineer who guessed right about everything else. Look for: directories or files that are generated (build config output paths, codegen targets, `# @generated` / `DO NOT EDIT` headers, `.gitattributes linguist-generated`); commands that only work from a particular directory (a nested app root, a workspace member with its own scripts); lint or type-check rules the code suppresses in one specific place with an inline comment, and why; a dependency pinned to an exact version with a comment explaining it; CI steps that run something the local commands do not; environment or service prerequisites a test or build needs; a convention the codebase follows everywhere except one deliberate exception.
+
+    Report at most 5, each one sentence, each naming the concrete file or command it concerns. Exclude anything derivable from a directory listing, the manifest, or reading one obvious file — the tech stack, what `src/` holds, which framework is in use. If nothing clears that bar, report `none`; do not manufacture entries.
+
 ### Return format
 
 Return your findings in this exact structure:
@@ -66,3 +70,6 @@ Return your findings in this exact structure:
 
 ### Doc-sourced insights
 [List of verified conventions, architecture rationale, and workflow rules extracted from project docs — or "No documentation found"]
+
+### Gotchas
+[At most 5 one-sentence entries from task 10, each naming the file or command it concerns and the evidence for it — or "none"]

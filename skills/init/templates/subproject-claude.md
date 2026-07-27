@@ -2,28 +2,25 @@
 
 # [PACKAGE NAME]
 
-Part of the [MONOREPO NAME] monorepo.
+[One-line description]. Part of the [MONOREPO NAME] monorepo. Built with [TECH STACK].
 
-## What
-
-[One-line description]. Built with [TECH STACK].
-
-## Why
-
-[2-5 bullets: conventions, key patterns, entry points, folder structure specific to this subproject]
-
-## How
+## Commands
 
 [Subproject-specific build, test, lint commands — run from this directory]
 
 ## Documentation
 
-<!-- Only list docs that were actually created for this subproject -->
-Read the relevant doc before making changes:
-- `docs/testing.md` - For writing or modifying tests
-- `docs/styling.md` - For UI components, CSS, visual changes
-- `docs/architecture.md` - For understanding subproject structure, data flow
+Read the doc that matches the change — not all of them. Root `.claude/docs/coding-guidelines.md`
+applies to code in every package.
 
-Root `.claude/docs/coding-guidelines.md` applies to all packages in this monorepo.
+<!-- init adds one row per doc it actually created for this subproject (docs/testing.md,
+docs/styling.md, docs/architecture.md). When skill authoring was detected at the repo level, it
+also adds a row routing markdown instruction files to root `.claude/docs/skill-writing-guidelines.md`. -->
 
-<!-- If skill authoring was detected at the repo level, init adds: "Root `.claude/docs/skill-writing-guidelines.md` applies to markdown instruction files in any subproject (skills/, agents/, prompts/, commands/, instructions/)." -->
+## Gotchas
+
+[At most 5 bullets — a ceiling, not a target. Only what is specific to this package and would bite
+someone who guessed right about everything else: a command that must run from the repo root
+instead of here, generated sources, a dependency on a sibling package's build output, a
+convention this package deliberately breaks. Skip anything the manifest or a directory listing
+would reveal. Write none and delete this section rather than filler.]

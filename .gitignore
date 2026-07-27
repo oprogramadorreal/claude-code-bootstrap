@@ -15,3 +15,4 @@ htmlcov/
 .claude/unit-test-deep-progress.*
 .claude/.deep-iteration-*
 .claude/.unit-test-deep-*
+uv.lock
