@@ -64,9 +64,20 @@ hook_version() { # $1=file -> integer; a copy with no marker predates versioning
   printf '%s' "${v:-0}"
 }
 
+# CLAUDE_PLUGIN_ROOT cannot be the gate here: it reads empty on some platforms
+# (notably Windows), and gating on it turned this whole check into a silent
+# no-op exactly where a stale hook is as likely as anywhere. This script lives
+# at <plugin-root>/hooks/session-start, so its own location is authoritative;
+# the env var stays as an override for an installation that relocates it.
+plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
+if [ -z "$plugin_root" ]; then
+  hook_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || hook_dir=""
+  [ -n "$hook_dir" ] && plugin_root="$(dirname -- "$hook_dir")"
+fi
+
 installed_hook=".claude/hooks/restrict-paths.sh"
-template_hook="${CLAUDE_PLUGIN_ROOT:-}/skills/permissions/templates/hooks/restrict-paths.sh"
-if [ -f "$installed_hook" ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$template_hook" ]; then
+template_hook="$plugin_root/skills/permissions/templates/hooks/restrict-paths.sh"
+if [ -f "$installed_hook" ] && [ -f "$template_hook" ]; then
   have="$(hook_version "$installed_hook")"
   want="$(hook_version "$template_hook")"
   if [ "$want" -gt "$have" ]; then

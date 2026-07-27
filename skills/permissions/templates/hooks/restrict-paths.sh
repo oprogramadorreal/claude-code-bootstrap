@@ -5,7 +5,7 @@
 # Source:       https://github.com/oprogramadorreal/optimus-claude
 # Docs:         skills/permissions/README.md
 # ============================================================================
-# HOOK_VERSION: 5
+# HOOK_VERSION: 6
 # ^ Bump on every behavioural change. The plugin's SessionStart hook compares
 #   this against the copy installed in a project and recommends re-running
 #   /optimus:permissions when the project's copy is older — a plugin update
@@ -131,6 +131,25 @@
 #   resolution above cannot settle — a RELATIVE path, which has no root to anchor
 #   '..' against — so such a path can never pass a prefix test.
 #
+# COMMAND PARSING:
+#   A Bash tool call arrives as ONE string that may hold many commands. Both
+#   Bash-side guards (delete protection, git branch protection) work on it in
+#   three stages, each of which exists because skipping it turned the guard off
+#   for an ordinary spelling rather than an exotic one:
+#     1. Split on the shell's command operators — '&&', '||', ';', '|', '&' and
+#        newline — then peel any leading keyword ('do ', 'then ', '{ ') the split
+#        left at the front of a fragment.
+#     2. shell_split() each fragment into words, honouring quotes and escapes and
+#        expanding '~' / $VAR, so a gate compares the path the shell will act on
+#        rather than the characters as typed.
+#     3. cmd_word_index() locates the fragment's command word THROUGH a wrapper
+#        prefix (sudo, command, env VAR=val, xargs and its flags, /bin/rm, \rm),
+#        and stops at the first token that is a real command — so an argument
+#        that merely reads 'rm' is never mistaken for one.
+#   Not covered, by design: command substitution (`rm $(cat list)`) and
+#   `find -exec`, where the delete is not the fragment's own command. This is a
+#   guardrail against accidents, not a sandbox against a determined bypass.
+#
 # TO DISABLE OR REMOVE:
 #   1. Delete this file: rm .claude/hooks/restrict-paths.sh
 #   2. Remove the PreToolUse hook entry from .claude/settings.json
@@ -192,6 +211,15 @@ is_precious() {
   lname="$(basename "$1")"
   # Case-insensitive matching for Windows (NTFS) and macOS (APFS)
   [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == darwin* ]] && lname="${lname,,}"
+  is_precious_name "$lname" && return 0
+  is_recoverable_precious "$1"
+}
+
+# The hard list, matched on a basename the caller has already case-folded.
+# Split out of is_precious so is_recoverable_precious can re-test a '.bak' stem
+# against it without recursing back through the tail call below.
+is_precious_name() {
+  local lname="$1"
   case "$lname" in
     # Secrets / credentials
     .env*) return 0 ;;
@@ -211,7 +239,16 @@ is_precious() {
     # Database dumps
     *.dump|*.sql.gz) return 0 ;;
   esac
-  is_recoverable_precious "$1"
+  # A '.bak' copy holds exactly what it copied, so re-test the stem against the
+  # same list. Without this, only the PREFIX patterns above ('.env*',
+  # 'credentials.*') survived the suffix — 'id_rsa.pem.bak' and 'app.sqlite.bak'
+  # matched nothing, and appending '.bak' laundered them off the list. Each hop
+  # strips one suffix, so the recursion is bounded by the name's length.
+  if [[ "$lname" == *.bak ]]; then
+    is_precious_name "${lname%.bak}"
+    return $?
+  fi
+  return 1
 }
 
 # Precious, but recoverable: worth an ask before overwriting, never worth an
@@ -222,7 +259,15 @@ is_precious() {
 is_recoverable_precious() {
   local lname; lname="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
   case "$lname" in
-    *.bak|*.suo|*.user) return 0 ;;
+    *.suo|*.user) return 0 ;;
+    *.bak)
+      # Only a backup OF something ordinary is recoverable. Matching the '.bak'
+      # suffix alone made the suffix a laundering trick: '.env.bak',
+      # 'id_rsa.pem.bak', 'credentials.json.bak' and 'app.sqlite.bak' hold
+      # exactly the secrets of the file they copy, yet each dropped out of the
+      # hard list the moment the suffix was appended. Re-test the stem.
+      is_precious_name "${lname%.bak}" && return 1
+      return 0 ;;
   esac
   return 1
 }
@@ -565,6 +610,145 @@ guard_out_of_project_write() {
   ask_permission "$noun '$filepath' is outside project root. Allow this $verb?"
 }
 
+# --- Command-line word splitting (see header: COMMAND PARSING) ---
+# Split a command fragment into shell words, honouring single quotes, double
+# quotes and backslash escapes, then expand '~' and $VAR. Result in _words.
+#
+# `read -ra` is not a substitute: it splits on whitespace and hands back the
+# characters verbatim, quote marks included. `rm "<abs path>"` then arrives as
+# the single word '"<abs path>"', which normalize() resolves as a RELATIVE path
+# under the project root — so the out-of-project hard block never fires. Claude
+# Code quotes any path containing a space, so that was the common case, not an
+# exotic one. Same story for '~/x' and '$HOME/x'.
+_words=()
+shell_split() {
+  # Two statements on purpose: bash expands a whole `local` line BEFORE binding
+  # any of its names, so `local s="$1" n=${#s}` reads the OUTER s and sets n=0 —
+  # the loop below then never runs and every fragment splits to nothing.
+  local s="$1"
+  local n=${#s} i=0 c d q="" cur="" started=""
+  _words=()
+  while (( i < n )); do
+    c="${s:i:1}"
+    if [[ "$q" == "'" ]]; then
+      if [[ "$c" == "'" ]]; then q=""; else cur+="$c"; fi
+    elif [[ "$q" == '"' ]]; then
+      if [[ "$c" == '"' ]]; then
+        q=""
+      elif [[ "$c" == '\' ]]; then
+        # Inside double quotes a backslash escapes only these four.
+        d="${s:i+1:1}"
+        case "$d" in
+          '"'|'\'|'$'|'`') cur+="$d"; (( i++ )) ;;
+          *) cur+="$c" ;;
+        esac
+      else
+        cur+="$c"
+      fi
+    else
+      case "$c" in
+        "'"|'"') q="$c"; started=1 ;;
+        '\') cur+="${s:i+1:1}"; (( i++ )); started=1 ;;
+        ' '|$'\t'|$'\n')
+          if [[ -n "$started" ]]; then _words+=("$cur"); cur=""; started=""; fi
+          ;;
+        *) cur+="$c"; started=1 ;;
+      esac
+    fi
+    (( i++ ))
+  done
+  [[ -n "$started" ]] && _words+=("$cur")
+  local _i=0
+  while (( _i < ${#_words[@]} )); do
+    expand_word "${_words[_i]}"
+    _words[_i]="$_expanded"
+    (( _i++ ))
+  done
+  return 0
+}
+
+# Expand a leading '~' and every $VAR / ${VAR} in a word. No eval, no forks.
+# Result in _expanded.
+#
+# Expansion is applied to every word, including single-quoted ones the shell
+# would keep literal. That over-expands in exactly one direction: a file
+# literally named '$HOME' would be judged by where the variable points, which
+# errs toward asking or blocking. Under-expanding is the hole this closes —
+# `rm $HOME/.ssh/id_rsa` used to read as an in-project relative path and sail
+# straight through the out-of-project block.
+_expanded=""
+expand_word() {
+  local w="$1" out="" rest name literal ch
+  case "$w" in
+    "~")   w="${HOME:-\~}" ;;
+    "~/"*) w="${HOME:-\~}/${w#\~/}" ;;
+  esac
+  while [[ "$w" == *'$'* ]]; do
+    out+="${w%%\$*}"
+    rest="${w#*\$}"
+    name=""
+    if [[ "$rest" == '{'* && "$rest" == *'}'* ]]; then
+      name="${rest%%\}*}"; name="${name#\{}"
+      literal="\${$name}"
+      rest="${rest#*\}}"
+    else
+      while [[ -n "$rest" ]]; do
+        ch="${rest:0:1}"
+        case "$ch" in
+          [a-zA-Z0-9_]) name+="$ch"; rest="${rest:1}" ;;
+          *) break ;;
+        esac
+      done
+      literal="\$$name"
+    fi
+    # Only a plain identifier is resolved. '$(...)', '$1', '${x:-y}' and the
+    # like stay literal — reading them needs an eval this hook will not run, and
+    # a word the hook leaves literal is still checked, just as written.
+    if [[ "$name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+      out+="${!name-}"
+    else
+      out+="$literal"
+    fi
+    w="$rest"
+  done
+  _expanded="$out$w"
+}
+
+# Locate the command word of an already-split fragment: sets _cmd_idx to the
+# index of the first token whose basename matches one of the '|'-separated
+# names in $1, and returns 1 when the fragment runs some other command.
+#
+# A guard anchored on the fragment's FIRST token misses every ordinary spelling
+# of the same command — `sudo rm`, `command rm`, `env rm`, `/bin/rm`, `\rm`
+# (which defeats an alias, not this hook), `xargs -n 1 rm`, `xargs -I {} rm`,
+# `timeout 5 rm`. The walk steps over a wrapper, its flags, a flag's numeric or
+# placeholder value, and VAR=val assignments, and it stops dead at the first
+# token that is a real command, so `git commit -m "rm the old file"` can never
+# be read as a delete.
+#
+# Known limits, both pre-existing: a command reached through `find -exec` or a
+# command substitution (`rm $(cat list)`) is not seen, because neither is a
+# wrapper prefix — the fragment's command is `find` / the outer command.
+_cmd_idx=-1
+cmd_word_index() {
+  local names="$1"; shift
+  local -a t=("$@")
+  local i tok base
+  for ((i=0; i<${#t[@]}; i++)); do
+    tok="${t[i]#\\}"
+    base="${tok##*/}"
+    case "|$names|" in
+      *"|$base|"*) _cmd_idx=$i; return 0 ;;
+    esac
+    case "$tok" in
+      sudo|doas|command|builtin|exec|env|nohup|nice|ionice|stdbuf|time|timeout|xargs) ;;
+      -*|*=*|'{}'|'%'|[0-9]*) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 1
+}
+
 # --- Git branch protection ---
 # Customize this list to match your project's protected branches.
 # These branches are shielded from commits, pushes, rebases, resets,
@@ -681,22 +865,25 @@ check_git_push() {
   done
 }
 
-# Check a single command string for git branch protection violations.
-# Handles "git ...", "env ... git ...", and "command ... git ..." forms.
-# Called with the sub-command string and an optional cd directory from a chained command.
+# Check one already-split command fragment for git branch protection violations.
+# Called with an optional cd directory from a chained command, followed by the
+# fragment's words as produced by shell_split.
 # Calls deny_operation (exits the script) if blocked; returns 0 if allowed.
 check_git_command() {
-  local subcmd="$1"
-  local cd_dir="${2:-}"
+  local cd_dir="${1:-}"; shift
+  local -a tokens=("$@")
 
-  # Detect git commands, including common wrappers (env VAR=val git ..., command git ...)
-  [[ "$subcmd" == git\ * || "$subcmd" == env\ *git\ * || "$subcmd" == command\ *git\ * ]] || return 0
+  # Detect git through any wrapper prefix (sudo, env VAR=val, command, /usr/bin/git).
+  cmd_word_index 'git' "${tokens[@]}" || return 0
+  # Re-base the array on the git word so every index below still counts from 'git'.
+  local -a _args=()
+  (( ${#tokens[@]} > _cmd_idx + 1 )) && _args=("${tokens[@]:$((_cmd_idx + 1))}")
+  tokens=(git ${_args[@]+"${_args[@]}"})
 
-  # Normalize: extract the "git ..." portion for consistent token parsing
-  local git_portion="git ${subcmd#*git }"
-
-  local -a tokens
-  read -ra tokens <<< "$git_portion"
+  # Rejoin for the two whole-string checks further down ('--hard', the branch
+  # delete flags). IFS is restored immediately: the callees below run `read`.
+  local git_portion _oldifs="$IFS"
+  IFS=' '; git_portion="${tokens[*]}"; IFS="$_oldifs"
 
   # Find git subcommand (skip global flags between 'git' and subcommand)
   local git_subcmd="" git_subcmd_idx=0 git_dir=""
@@ -880,20 +1067,54 @@ case "$tool_name" in
     cmd="${cmd//$'\001'/\\}"
 
     # --- Git branch protection + Delete protection ---
-    # Split command on shell operators (&&, ||, ;) and check each sub-command.
-    # This handles chained commands like "cd /repo && git commit" and "cd /tmp && rm file".
+    # Split command on shell operators and check each sub-command. This handles
+    # chained commands like "cd /repo && git commit" and "cd /tmp && rm file".
     # Tracks 'cd <dir>' targets to resolve git context in multi-repo workspaces
     # where Claude Code uses "cd <repo> && git ..." patterns.
+    #
+    # Pure bash, and '&' is one of the operators. The `sed 's/&&/\n/g; ...'` this
+    # replaces emitted no newline for a LONE '&', so `true & rm <outside>` stayed
+    # a single fragment that no anchored guard matched — both hard blocks were
+    # one background operator away from being no-ops. (It also relied on GNU
+    # sed's \n in a replacement, which inserts a literal 'n' on macOS/BSD, and
+    # forked a process per command.)
+    _split="$cmd"
+    _split="${_split//&&/$'\n'}"
+    _split="${_split//||/$'\n'}"
+    _split="${_split//;/$'\n'}"
+    _split="${_split//|/$'\n'}"
+    _split="${_split//&/$'\n'}"
     _cd_dir=""
     while IFS= read -r _subcmd; do
       _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"  # trim leading whitespace
       _subcmd="${_subcmd#\(}"                              # strip leading subshell paren
       _subcmd="${_subcmd%\)}"                              # strip trailing subshell paren
 
+      # Peel leading shell keywords. `for f in *; do rm <outside>; done` splits
+      # into a fragment beginning 'do rm ...' and `if x; then rm <outside>; fi`
+      # into one beginning 'then rm ...' — neither of which the guards below saw,
+      # so a loop or an if was enough to walk both of them past an unwanted delete
+      # and past the protected-branch check.
+      while :; do
+        case "$_subcmd" in
+          do|then|else|elif|fi|done|esac|in|'{'|'}'|'!') _subcmd="" ;;
+          do\ *|then\ *|else\ *|elif\ *|if\ *|while\ *|until\ *|'{'\ *|'!'\ *)
+            _subcmd="${_subcmd#* }" ;;
+          *) break ;;
+        esac
+        _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"
+        [[ -n "$_subcmd" ]] || break
+      done
+      [[ -n "$_subcmd" ]] || continue
+
+      # One quote-aware split per fragment, shared by all three gates below.
+      shell_split "$_subcmd"
+      (( ${#_words[@]} )) || continue
+      _frag=("${_words[@]}")
+
       # Track 'cd <dir>' to resolve context for subsequent commands
-      if [[ "$_subcmd" == cd\ * || "$_subcmd" == cd ]]; then
-        read -ra _cd_tokens <<< "$_subcmd"
-        for _cd_tok in "${_cd_tokens[@]:1}"; do
+      if [[ "${_frag[0]}" == cd ]]; then
+        for _cd_tok in "${_frag[@]:1}"; do
           [[ "$_cd_tok" == -* ]] && continue
           _cd_dir="$_cd_tok"
           break
@@ -902,16 +1123,17 @@ case "$tool_name" in
       fi
 
       # Git branch protection (feature branches allowed, protected branches blocked)
-      check_git_command "$_subcmd" "$_cd_dir"
+      check_git_command "$_cd_dir" "${_frag[@]}"
 
       # Delete protection (rm/rmdir outside project or precious unversioned).
-      # A pipe hands the post-'|' fragment here as its own sub-command, so the
-      # anchor must also see through an xargs wrapper (and its flags) — else
-      # `find ... | xargs rm <path>` skips the guard entirely.
-      if [[ "$_subcmd" =~ ^(xargs[[:space:]]+(-[^[:space:]]+[[:space:]]+)*)?(rm|rmdir)[[:space:]] ]]; then
-        read -ra words <<< "$_subcmd"
-        for word in "${words[@]}"; do
-          [[ "$word" == rm || "$word" == rmdir || "$word" == xargs || "$word" == -* ]] && continue
+      # cmd_word_index sees through wrapper prefixes — a pipe hands the post-'|'
+      # fragment here on its own, so `find ... | xargs -n 1 rm <path>` and
+      # `sudo rm <path>` have to be recognized as deletes just like a bare `rm`.
+      if cmd_word_index 'rm|rmdir' "${_frag[@]}"; then
+        for word in "${_frag[@]:$((_cmd_idx + 1))}"; do
+          # Flags, and the placeholder/terminator tokens of an xargs or find
+          # invocation — none of them name a file.
+          case "$word" in -*|'{}'|'+'|';'|'') continue ;; esac
           # Claude's own auto-memory store and session scratchpad are writable AND
           # prunable by design, so deletes there are allowed like writes — via the
           # SAME ladder the write gate uses. Everything else outside the project
@@ -929,7 +1151,7 @@ case "$tool_name" in
           fi
         done
       fi
-    done <<< "$(printf '%s' "$cmd" | sed 's/&&/\n/g; s/||/\n/g; s/;/\n/g; s/|/\n/g')"
+    done <<< "$_split"
     exit 0
     ;;
   *)

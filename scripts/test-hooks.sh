@@ -29,6 +29,11 @@ setup_fixture() {
 
 cleanup_fixture() {
   if [ -n "$tmpdir" ] && [ -d "$tmpdir" ]; then
+    # Leave the directory before deleting it. The shell's CWD is inside the
+    # fixture, and everything after the LAST cleanup_fixture would otherwise run
+    # from a deleted directory — where a relative path resolves against nothing,
+    # so those cases exercise a getcwd failure rather than the guard under test.
+    cd "$PLUGIN_ROOT" || return
     rm -rf "$tmpdir"
   fi
   tmpdir=""
@@ -81,6 +86,17 @@ run_session_start() {
   # CLAUDE_PLUGIN_ROOT is what hooks.json passes in production; the hook needs it
   # to find the shipped template it compares the installed hook against.
   output=$(CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" bash "$SESSION_START" 2>/dev/null)
+  hook_status=$?
+  set -e
+}
+
+# Same, but with CLAUDE_PLUGIN_ROOT genuinely unset. The variable reads empty on
+# some platforms (notably Windows), which is why the hook falls back to its own
+# location; every other case here hardcodes it, so without this one the fallback
+# is untested and the drift notice could be dead in production with a green suite.
+run_session_start_no_plugin_root() {
+  set +e
+  output=$(env -u CLAUDE_PLUGIN_ROOT bash "$SESSION_START" 2>/dev/null)
   hook_status=$?
   set -e
 }
@@ -252,6 +268,13 @@ run_session_start
 assert_output_contains "Flags a hook older than the plugin's" "/optimus:permissions" "$output"
 assert_output_contains "Names the stale file" ".claude/hooks/restrict-paths.sh" "$output"
 assert_exit_zero "Exits 0 when flagging a stale hook" "$hook_status"
+cleanup_fixture
+
+echo "[session-start: stale hook, CLAUDE_PLUGIN_ROOT unset]"
+setup_versioned_fixture 1
+run_session_start_no_plugin_root
+assert_output_contains "Locates the template via its own path when the env var is unset" "/optimus:permissions" "$output"
+assert_exit_zero "Exits 0 with CLAUDE_PLUGIN_ROOT unset" "$hook_status"
 cleanup_fixture
 
 echo "[session-start: installed hook predates versioning]"
@@ -828,6 +851,98 @@ assert_decision "Bundled -Df branch delete denied"     DENY  "$(rp_git_decision 
 assert_decision "Bundled -Df feature delete allowed"   ALLOW "$(rp_git_decision 'git branch -Df feature-x')"
 assert_decision "Commit with quoted message still guarded" DENY \
   "$(rp_git_decision 'git commit -m \"fix: something\"')"
+
+echo "[restrict-paths: command-parsing bypasses]"
+# Every case here is the SAME command a plain-spelling assertion above already
+# blocks, respelled the way a shell ordinarily lets you spell it. Each one used
+# to be allowed silently, so the hard blocks were one quote / one '&' / one
+# wrapper word away from being no-ops. Both guards are covered: a regression in
+# the fragment splitter or the command-word walk breaks rm AND git at once.
+
+# Quotes and expansions. `read -ra` performs no quote removal, so the word kept
+# its quote marks and normalize() resolved it RELATIVE to the project root.
+assert_decision "Double-quoted out-of-project rm denied" DENY \
+  "$(rp_decision Bash command "rm \\\"$rp_tmp/outside/a.txt\\\"")"
+assert_decision "Single-quoted out-of-project rm denied" DENY \
+  "$(rp_decision Bash command "rm '$rp_tmp/outside/a.txt'")"
+assert_decision "Quoted path containing a space denied" DENY \
+  "$(rp_decision Bash command "rm \\\"$rp_tmp/outside/a b.txt\\\"")"
+assert_decision "Tilde-relative rm denied" DENY \
+  "$(rp_decision Bash command 'rm ~/.bashrc')"
+assert_decision "\$HOME-relative rm denied" DENY \
+  "$(rp_decision Bash command 'rm $HOME/.ssh/id_rsa')"
+assert_decision "\${HOME}-relative rm denied" DENY \
+  "$(rp_decision Bash command 'rm ${HOME}/.ssh/id_rsa')"
+# Quoting must not create a FALSE block either: a message that merely reads
+# like a delete is an argument of git, not a command.
+assert_decision "Quoted 'rm' inside a commit message allowed" ALLOW \
+  "$(rp_decision Bash command 'git commit -m \"rm /etc/passwd from the docs\"')"
+assert_decision "Quoted \$HOME inside a commit message allowed" ALLOW \
+  "$(rp_decision Bash command 'git commit -m \"drop $HOME handling\"')"
+
+# The single '&' background operator, and the keywords a compound command
+# leaves at the head of a fragment. The old sed splitter emitted no newline for
+# a lone '&', and every guard was anchored at the fragment's first token.
+assert_decision "Backgrounded rm outside project denied" DENY \
+  "$(rp_decision Bash command "true & rm $rp_tmp/outside/a.txt")"
+assert_decision "rm inside a for-loop body denied" DENY \
+  "$(rp_decision Bash command "for f in a; do rm $rp_tmp/outside/a.txt; done")"
+assert_decision "rm inside an if body denied" DENY \
+  "$(rp_decision Bash command "if true; then rm $rp_tmp/outside/a.txt; fi")"
+assert_decision "Backgrounded push to protected branch denied" DENY \
+  "$(rp_git_decision 'true & git push origin master')"
+assert_decision "Push to protected branch in a loop body denied" DENY \
+  "$(rp_git_decision 'for f in a; do git push origin master; done')"
+assert_decision "Quoted protected branch name denied" DENY \
+  "$(rp_git_decision 'git push origin \"master\"')"
+
+# Wrapper prefixes. The rm guard recognized only a bare `xargs` with valueless
+# flags, while the git guard already handled `command`/`env` — the two are now
+# one walk, so they cannot drift apart again.
+assert_decision "xargs with a valued flag denied" DENY \
+  "$(rp_decision Bash command "find . | xargs -n 1 rm $rp_tmp/outside/a.txt")"
+assert_decision "xargs -I placeholder denied" DENY \
+  "$(rp_decision Bash command "find . | xargs -I {} rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo rm denied" DENY \
+  "$(rp_decision Bash command "sudo rm $rp_tmp/outside/a.txt")"
+assert_decision "command rm denied" DENY \
+  "$(rp_decision Bash command "command rm $rp_tmp/outside/a.txt")"
+assert_decision "env VAR=val rm denied" DENY \
+  "$(rp_decision Bash command "env FOO=bar rm $rp_tmp/outside/a.txt")"
+assert_decision "Absolute-path rm denied" DENY \
+  "$(rp_decision Bash command "/bin/rm $rp_tmp/outside/a.txt")"
+assert_decision "Backslash-escaped rm denied" DENY \
+  "$(rp_decision Bash command "\\\\rm $rp_tmp/outside/a.txt")"
+assert_decision "timeout-wrapped rm denied" DENY \
+  "$(rp_decision Bash command "timeout 5 rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo-wrapped push to protected branch denied" DENY \
+  "$(rp_git_decision 'sudo git push origin master')"
+# The walk must still stop at a real command: `grep` is not a wrapper, so its
+# argument can never be read as a delete target.
+assert_decision "grep for an rm pattern allowed" ALLOW \
+  "$(rp_decision Bash command "grep -r \\\"rm -rf\\\" $rp_tmp/proj")"
+
+# A '.bak' suffix must not launder a file off the hard precious list. These run
+# against is_precious_name directly: the delete gate needs an untracked file to
+# exist in a git repo, and the classification is what a regression would break.
+rp_precious_name() { # $1=basename -> PRECIOUS | RECOVERABLE | ORDINARY
+  rp_drive_fn "" is_precious_name,is_recoverable_precious \
+    'if is_precious_name "$1"; then echo PRECIOUS
+     elif is_recoverable_precious "$1"; then echo RECOVERABLE
+     else echo ORDINARY; fi' "$1"
+}
+assert_decision ".env is precious"              PRECIOUS    "$(rp_precious_name '.env')"
+assert_decision ".env.bak stays precious"       PRECIOUS    "$(rp_precious_name '.env.bak')"
+assert_decision "id_rsa.pem.bak stays precious" PRECIOUS    "$(rp_precious_name 'id_rsa.pem.bak')"
+assert_decision "app.sqlite.bak stays precious" PRECIOUS    "$(rp_precious_name 'app.sqlite.bak')"
+assert_decision "credentials.json.bak stays precious" PRECIOUS "$(rp_precious_name 'credentials.json.bak')"
+# The reason the recoverable class exists: a deny goes to Claude, not the user,
+# so an ordinary backup must stay deletable — including the harness's own.
+assert_decision "notes.txt.bak is recoverable"  RECOVERABLE "$(rp_precious_name 'notes.txt.bak')"
+assert_decision "harness progress .bak is recoverable" RECOVERABLE \
+  "$(rp_precious_name 'code-review-deep-progress.json.bak')"
+assert_decision "*.suo is recoverable"          RECOVERABLE "$(rp_precious_name 'proj.suo')"
+assert_decision "notes.txt is ordinary"         ORDINARY    "$(rp_precious_name 'notes.txt')"
 
 echo "[restrict-paths: path normalization]"
 # EXACTLY two leading slashes are a UNC network root on MSYS/Cygwin, but plain
