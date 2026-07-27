@@ -41,13 +41,13 @@ On **Scaffold**: read and execute `$CLAUDE_PLUGIN_ROOT/skills/init/references/ne
 
 ### Project detection (agent-assisted)
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/init/agents/project-analyzer.md` and launch 1 `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md` — the agent reads the detection references itself via the absolutized paths its prompt carries.
+Read `$CLAUDE_PLUGIN_ROOT/skills/init/agents/project-analyzer.md` and launch 1 `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md` — the agent reads the detection references itself via the absolutized paths its prompt carries. When the current directory has no `.git/` directory, also append the contents of `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` — `project-detection.md` Step 0 expects that algorithm in the prompt and does not fetch it.
 
 If the agent reports the structure as **ambiguous**, resolve via `AskUserQuestion`: ask the user to confirm whether this is a monorepo and identify subproject directories.
 
 ### Checkpoint
 
-Confirm the agent's Detection Results cover every field of its return format (project name through doc-sourced insights); re-examine the project for anything missing. Print the results as a **Detection Summary**. If no test infrastructure was detected, append:
+Print the agent's results as a **Detection Summary**. If a field of its return format came back empty or absent (project name through doc-sourced insights), fill that specific gap yourself — don't re-run the detection the agent just did. If no test infrastructure was detected, append:
 
 > **Tests:** No test framework, test script, or test directory detected — Step 5b will offer to install one. Strongly recommended: multiple optimus skills depend on test infrastructure.
 

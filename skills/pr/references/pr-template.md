@@ -32,7 +32,13 @@ Example:
 - **Key decisions:** Time-limited token in URL rather than session cookie (stateless reset); 30-min expiry chosen over 24h to limit the attack window.
 ```
 
-Detection rule: an existing body has an Intent section when a line starts at column 0 with `## Intent` (case-insensitive) and nothing but whitespace or anchor punctuation (e.g. `{`) follows the word — rejecting `## Intentional X` or `## Intents` — outside fenced code blocks and blockquotes.
+**Detection rule.** An existing body has an Intent section when a line outside fenced code blocks and blockquotes matches:
+
+```regex
+^##[ \t]+[Ii]ntent[ \t]*(?:\{[^}]*\}|[^\w\s]+)?[ \t]*$
+```
+
+That accepts `## Intent`, `## Intent:`, and a trailing anchor such as `## Intent {#intent}`; it rejects `## Intentional rollback`, `## Intents`, `## Intent and scope`, `###`-level headings, and any `## Intent` that is indented or quoted. `/optimus:pr` writes against this rule and `/optimus:code-review` reads against it, so both halves of the handoff share one definition — `test/harness-common/test_intent_detection.py` pins it with worked examples on both sides.
 
 ### `## Summary`
 

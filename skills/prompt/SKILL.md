@@ -116,11 +116,11 @@ Scan the draft against these patterns. Fix silently; flag only fixes that would 
 | No stack constraints | Pin language, framework, versions, allowed libraries |
 | Entire codebase pasted as context | Scope to the relevant file and function only |
 | Wrong template for the tool | Adapt to the tool's native syntax |
-| No self-check on complex output | Add "Before finishing, verify output against the constraints above" |
+| Self-verification scaffolding — "double-check your answer", "verify the output against the constraints", "re-check before responding" | Strip it for reasoning-native and Claude 5 targets: they already self-verify, so it buys extra passes and no quality. Keep only checks against something external the model cannot self-assess — a test suite, a schema, a live API |
 | Over-permissive agent — "do whatever it takes" | Add explicit allowed + forbidden actions |
 | No starting or target state for an agent | State what exists now and what must exist when done |
 | No stop conditions for an agent | Add stop conditions + a checkpoint after each step |
-| Silent agent | Require progress output after each step |
+| Unspecified update cadence on a long agent run | Describe the shape, not the frequency: one line before starting, an update only on something important or a change of direction, outcome first at the end |
 | Unlocked filesystem | Restrict edits to named paths; forbid config and .env |
 | No human-review trigger | Add "Stop and ask before deleting files, adding dependencies, or changing schema" |
 | Plan-mode prompt pre-explored or guardrailed | Strip pre-answered findings and any "YOU ARE IN PLAN MODE" / "read-only" / "do not edit" / "do not execute" lines — plan mode enforces read-only; frame analytical work as questions |
@@ -136,7 +136,7 @@ Apply only the techniques the task genuinely requires:
 - **Grounding anchor** — for factual or citation tasks: "Use only information you are highly confident is accurate. If uncertain, write [uncertain] next to the claim. Do not fabricate citations or statistics."
 - **Chain of Thought** — for logic, math, and debugging, only where hard rule 3 allows.
 
-Structure: place the most critical constraints in the **first 30%** of the generated prompt, where model attention is strongest; give every instruction the strongest signal word it warrants (MUST over should, NEVER over avoid, ALWAYS over prefer). When the conversation has prior history, prepend a memory block inside that first 30%:
+Structure: lead with the constraints that matter most, so a reader hits them before the detail — current long-context models follow instructions consistently wherever they sit, so this is about clarity, not attention decay. Reserve MUST / NEVER / ALWAYS for genuine invariants: safety rules, hard contracts, irreversible actions. Escalating every instruction to an absolute flattens the signal and leaves nothing to mark what truly cannot bend. When the conversation has prior history, prepend a memory block near the top:
 
 ```
 ## Context (carry forward)
@@ -146,7 +146,7 @@ Structure: place the most critical constraints in the **first 30%** of the gener
 - [What was tried and failed]
 ```
 
-Audit before delivery: every sentence load-bearing; no vague adjectives — translate to measurable specs; output format explicit; scope bounded; no fabrication-prone techniques remain.
+What a delivered prompt has to hold up to: every sentence load-bearing; no vague adjectives (translate them to measurable specs); output format explicit; scope bounded; no fabrication-prone techniques.
 
 ### Step 7 — Deliver and hand off
 

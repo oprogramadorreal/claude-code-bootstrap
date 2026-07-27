@@ -44,7 +44,7 @@ If the conversation has not already established the codebase's current state, br
 
 Scan the entire drafted body — authored prose as much as inlined content — against the **Redaction patterns** table and replace matches with the exact marker `[REDACTED: <kind>]`, preserving structure (e.g. `DATABASE_URL=postgres://app:[REDACTED: password]@db:5432/app`). Only reference lines (paths, SHAs, URLs) are exempt. A file whose name looks like a secret is never inlined with its values, regardless of tracked state — see the table's last two rows.
 
-Write the document to `docs/handoffs/<slug>.md`, creating the folder if missing. Re-scan the written file against the same table (same exemption) and fix any hits before reporting; tell the user the re-scan ran clean.
+Write the document to `docs/handoffs/<slug>.md`, creating the folder if missing. Re-scan the written file against the same table (same exemption) and fix any hits — the draft and what lands on disk can diverge, and a leaked credential is not recoverable once this file is committed.
 
 Report the written path. If the resolved root is not itself a git repo — a multi-repo workspace root, or a directory with no recognized structure — note the file is not under version control; suggest committing it inside a child repo or initializing version control at the root. Recommend `/optimus:commit` so the handoff reaches the remote — staying in this conversation, so the context being handed off is captured — and that the resumer point a fresh session at the written file. This skill writes only that one file (`docs/handoffs/<slug>.md`, creating the folder if missing); it never stages, commits, or pushes.
 

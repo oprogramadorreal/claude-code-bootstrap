@@ -1,5 +1,5 @@
 ---
-description: Guides test-driven development — decomposes a feature or bug fix into testable behaviors, then runs Red-Green-Refactor cycles with a failing test before every implementation. Auto-detects specs from docs/specs/ or docs/jira/, creates a feature branch (optional worktree), commits per cycle, runs a quality gate, and pushes. Recommends /optimus:init (falls back to general best practices on your choice); requires a passing test suite.
+description: Guides test-driven development — decomposes a feature or bug fix into testable behaviors, then runs Red-Green-Refactor cycles with a failing test before every implementation. Auto-detects specs from docs/specs/ or docs/jira/, creates a feature branch (optional worktree), commits per cycle, and pushes. Recommends /optimus:init (falls back to general best practices on your choice); requires a passing test suite.
 disable-model-invocation: true
 argument-hint: "[task description]"
 ---
@@ -31,7 +31,7 @@ Locate the test runner command (from `testing.md`, `CLAUDE.md`, or project manif
 - **Tests fail** — stop and report; a failing baseline makes Red/Green indistinguishable
 - **No runner found** — stop and recommend `/optimus:init` to set up test infrastructure (its Scaffold option covers projects with no code yet)
 
-Then detect the coverage command per `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/coverage-detection.md`. If found, run it once and record the `Before` percentage; Step 9 runs only the `After` measurement. If none, Step 9 omits its Coverage section.
+Then detect the coverage command per `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/coverage-detection.md`. If found, run it once and record the `Before` percentage; Step 8 runs only the `After` measurement. If none, Step 8 omits its Coverage section.
 
 ## Step 2: Task and Suitability
 
@@ -80,7 +80,7 @@ RIGHT (vertical):    test1→impl1, test2→impl2, test3→impl3, ...
 
 Write one minimal test for the current behavior: follow `testing.md` conventions, test exactly one behavior, and name it as a behavior specification (e.g., `"returns 401 when token is expired"`). Before writing mocks, read `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/testing-anti-patterns.md` — prefer real code over mocks, never assert on mock behavior.
 
-**Verification and reporting (every test run in Steps 4-9):** run the command fresh, read the complete output, and report the actual result with evidence (e.g., "14 passed, 1 failed") — never claim "should pass". After each phase, report the phase name, the behavior, the test path:name, and that actual result.
+**Test-result honesty (every test run in Steps 4-8):** run the command fresh, read the complete output, and state the actual result (e.g., "14 passed, 1 failed") — never "should pass". Red and Green both turn on a real observed result, so a guessed one silently breaks the discipline.
 
 Run the test suite. The new test **must fail on its assertion** for the right reason, and all other tests must still pass.
 
@@ -129,18 +129,14 @@ Auto-commit each completed cycle:
 1. Stage the cycle's files specifically (`git add <files>`; `git add -A` only when many files changed). Never stage files that look like secrets (`.env`, credentials, keys) — warn the user if any appear in `git status`.
 2. Commit with a conventional message per `$CLAUDE_PLUGIN_ROOT/skills/commit/references/conventional-commit-format.md`; report the short hash and message.
 
-Then ask exactly one question:
+Then keep cycling — return to Step 4 for the next behavior without asking. Two things interrupt the loop:
 
 - **Milestone boundary** — the completed behavior ends the current milestone and more remain: `AskUserQuestion` — header "Milestone complete", options **Next milestone** (present its behaviors for approval as in Step 3, then return to Step 4) / **Stop here**.
-- **Behaviors remain** — `AskUserQuestion` — header "Next step", options **Next behavior** (return to Step 4) / **Stop here**.
+- **The decomposition turns out to be wrong** — a behavior that was really several, or one the implementation showed was misframed. Say what changed and confirm the revised list before continuing. (Step 5's circuit breaker covers the narrower case of a test that will not pass.)
 
-If no behaviors remain or the user stops, proceed to Step 8.
+Report at those boundaries rather than per cycle: which behaviors landed, with their test names. If no behaviors remain, or the user stops, proceed to Step 8.
 
-## Step 8: Quality Gate
-
-Read `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/quality-gate.md` and follow it, using `<original-branch>` from Step 3 to scope the changed files. When complete, proceed to Step 9.
-
-## Step 9: Summary, Push, and PR/MR
+## Step 8: Summary, Push, and PR/MR
 
 ### Commit remaining work
 
@@ -161,7 +157,6 @@ If uncommitted changes exist (e.g., stopped mid-cycle), run the test suite first
 - Cycles completed: [N] of [total]
 - Tests passing: [actual last-run result — e.g., "14 passed, 1 skipped"]
 - Files created / modified: [lists]
-- Quality gate: code-simplifier ([N] findings), test-guardian ([N] findings)
 
 ### Coverage
 [Run the After measurement with the Step 1 coverage command. Include this section only when
@@ -174,13 +169,13 @@ both Before and After produced a real percentage — the "When to omit" rule in
 
 ### Push
 
-Push the branch: `git push -u origin <branch-name>`. If the push fails, report the error and stop — skip the rest of Step 9 and leave any worktree in place; the user must push manually, then run `/optimus:pr` (a new `/optimus:tdd` invocation starts fresh — it does not resume this one). On success, report the branch, its origin branch, and the commit count.
+Push the branch: `git push -u origin <branch-name>`. If the push fails, report the error and stop — skip the rest of Step 8 and leave any worktree in place; the user must push manually, then run `/optimus:pr` (a new `/optimus:tdd` invocation starts fresh — it does not resume this one). On success, report the branch, its origin branch, and the commit count.
 
 If behaviors remain unfinished, note them and suggest a follow-up `/optimus:tdd` run with them as the task, started from this feature branch — each run is a fresh decomposition; there is no resume.
 
 ### Next step
 
-Recommend `/optimus:pr` to create the PR/MR — run it in this same conversation so it can read the `## TDD Summary` block above and capture the implementation context. TDD never runs `gh`/`glab` itself.
+Recommend `/optimus:code-review` first: cross-cycle issues — duplication between behaviors, naming drift, coverage gaps that only surface once the whole feature shape exists — are invisible from inside a single cycle, and it reviews the branch diff with the full agent fan-out. Then `/optimus:pr` to create the PR/MR, which reads the `## TDD Summary` block above for implementation context. Run both in this same conversation; TDD never runs `gh`/`glab` itself.
 
 ### Worktree cleanup
 

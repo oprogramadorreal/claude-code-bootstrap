@@ -1,8 +1,6 @@
 # Multi-Repo Workspace Detection
 
-Shared detection algorithm referenced by multiple skills. Each consuming skill applies its own policy after detection.
-
-> **Note:** This algorithm is a portable copy of `project-detection.md` Step 0. Changes to the core detection logic must be synchronized between both files.
+Canonical detection algorithm, read by every skill that needs it — including `project-detection.md` Step 0. Each consuming skill applies its own policy after detection. Change it here; there is no second copy to sync.
 
 ## Detection Algorithm
 

@@ -49,7 +49,7 @@ Gather: tests written (file, target, count, status), coverage change, untestable
 
 ### 5. Output structured JSON
 
-Output the results in a `json:harness-output` fenced block:
+Output the results in a `json:harness-output` fenced block. `$CLAUDE_PLUGIN_ROOT/references/schemas/coverage-harness-output.schema.json` is the contract — field names, types, and which are required — and `test/harness-common/fixtures/coverage-harness-output.golden.json` is a complete worked instance. The shape:
 
 ````
 ```json:harness-output

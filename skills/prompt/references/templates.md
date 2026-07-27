@@ -173,9 +173,9 @@ Pause and ask for human review when:
 - An error cannot be resolved in 2 attempts
 - The task requires changes outside the stated scope
 
-Checkpoints:
-After each major step, output: [what was completed]
-At the end, output a full summary of every file changed.
+Reporting:
+Lead your final message with the outcome, followed by a summary of every file changed.
+While working, speak up on something important or a change of direction — no per-step status lines.
 ```
 
 ## Template I — Visual Descriptor

@@ -644,6 +644,12 @@ require_tokens "$how_to_run_skill" '§Record-time validation' '§Render-time san
 # Audit-suite completeness: Step 6 applies "every Step 6 audit" in the audits
 # file, so a silently dropped audit passes every other gate (the v3 rewrite
 # dropped Template-shape this way while its render rules stayed mandated).
+# The audits pinned here all check a rendered claim against external evidence
+# — the filesystem, a manifest, the registry allowlist. Layout self-auditing
+# was removed deliberately in v3.2: Step 4's section shapes govern layout, and
+# re-checking your own formatting against a row-count threshold caught nothing
+# a reader would notice. Build Debug+Release survived that cut because a
+# half-documented build is a grounding gap, so it is pinned by name.
 require_tokens "$step6_file" \
   'External Services re-verification' \
   'Pre-Conditions Block audit' \
@@ -651,7 +657,7 @@ require_tokens "$step6_file" \
   'Specific-Token Audit' \
   'Unverified-Count filter' \
   'Section ordering' \
-  'Template-shape audit'
+  'Build Debug+Release pair'
 
 # Cross-step identifiers: Step 3/4 records rendered_line entries in the
 # approved-unverifiable-items list and Step 6 exempts exactly those lines by

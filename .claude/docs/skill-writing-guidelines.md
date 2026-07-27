@@ -20,6 +20,15 @@ Match specificity to fragility:
 
 Over-specified step lists for judgment tasks are the plugin's historical failure mode. Provide one sensible default with an escape hatch, not an option menu. Scripted AskUserQuestion dialogs are justified only at genuine decision gates (destructive actions, scope approval, cost confirmation) — not for choreography.
 
+## What not to instruct
+
+Current models already do these. Instructing them again costs tokens and can degrade behavior.
+
+- **Self-verification** — no "double-check", "verify before responding", or a final verification step appended to a task. What *is* worth instructing is a check against something external the model cannot self-assess: run the suite, validate against the schema, `diff` the installed file against its template. `references/harness-mode.md`'s "not even to 'verify' your own fixes" is the model to copy.
+- **Subagent verification of the skill's own output** — delegation is for large, genuinely independent work. An agent reviewing what this conversation just wrote has less context, not more. Recommend `/optimus:code-review` instead of inlining a private copy of it.
+- **Per-step narration** — describe the cadence you want (one line up front, updates on something important, outcome first at the end) rather than mandating a report after every step.
+- **Conservatism in analysis agents** — "only report what you're confident about" makes the model report less. Have agents report with an honest confidence label and filter in the consuming step, where the code is actually available to check against.
+
 ## Structure
 
 - Skill = one concern; extend an existing skill instead of adding a new one when the capability runs on the same inputs in the same conversation and a user would look for it under that name. Fewer, well-scoped skills beat many narrow ones — skills are user-invoked, and a sprawling `/optimus:` menu hurts recall. (Exception: `init` is a deliberate one-time orchestrator.)
@@ -34,7 +43,7 @@ Over-specified step lists for judgment tasks are the plugin's historical failure
 
 - Imperative steps, consistent terminology (one term per concept), no time-sensitive content.
 - Output templates stay plain: headings, bold, blockquotes — no decorative emoji, no hand-rolled "[Step N/M]" progress lines.
-- For parallel-agent steps, state the fan-out imperatively ("Launch all 4 agents in a single message") — some models under-spawn otherwise.
+- For parallel-agent steps, say to launch them in a single message — that instruction is about parallelism, not head count. Justify each agent by the lens it covers and let the conditional rules shrink the fan-out; don't write rules that forbid the model from sizing it.
 - Don't instruct Claude to narrate or transcribe its reasoning; ask for conclusions and rationale.
 
 ## Closing a skill

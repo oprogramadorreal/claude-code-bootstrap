@@ -344,72 +344,10 @@ def test_loop_reference_dispatches_via_skill_md_read(loop_ref, expected_paths):
 
 
 # ---------------------------------------------------------------------------
-# harness-mode.md JSON schema must parse via cli.py parse
+# harness-mode.md termination vocabulary
 # ---------------------------------------------------------------------------
-
-
-def test_harness_mode_documented_schema_round_trips_through_cli_parse(tmp_path, capsys):
-    """The JSON shape documented in references/harness-mode.md must parse via cli.py parse.
-
-    Without this test, a docs edit that renames `no_new_findings` or `pre_edit_content`
-    can leave the parser silently rejecting every subagent's output for some non-obvious
-    reason — the orchestrator just terminates with parse-failure on every run.
-    """
-    # Construct a payload that exercises every field documented in
-    # harness-mode.md step 8.
-    payload = {
-        "iteration": 3,
-        "new_findings": [
-            {
-                "file": "src/app.js",
-                "line": 42,
-                "end_line": 42,
-                "category": "bug",
-                "guideline": "General: avoid null dereference",
-                "summary": "Add null check before accessing property",
-                "fix_description": "Added null guard",
-                "severity": "Critical",
-                "confidence": "High",
-                "agent": "bug-detector",
-                "pre_edit_content": "obj.value",
-                "post_edit_content": "obj?.value",
-            }
-        ],
-        "fixes_applied": [
-            {
-                "file": "src/app.js",
-                "line": 42,
-                "end_line": 42,
-                "category": "bug",
-                "guideline": "General: avoid null dereference",
-                "summary": "Add null check before accessing property",
-                "fix_description": "Added null guard",
-                "severity": "Critical",
-                "confidence": "High",
-                "agent": "bug-detector",
-                "pre_edit_content": "obj.value",
-                "post_edit_content": "obj?.value",
-            }
-        ],
-        "fixes_skipped_persistent": [],
-        "no_new_findings": False,
-        "no_actionable_fixes": False,
-    }
-    raw = tmp_path / "raw.txt"
-    raw.write_text(
-        "preamble text\n"
-        "```json:harness-output\n" + json.dumps(payload, indent=2) + "\n```\n",
-        encoding="utf-8",
-    )
-    exit_code = cli.main(["parse", "--input-file", str(raw)])
-    assert exit_code == 0
-    parsed = json.loads(capsys.readouterr().out)
-    # Each top-level field documented in harness-mode.md must survive parsing.
-    assert parsed["iteration"] == 3
-    assert parsed["new_findings"][0]["pre_edit_content"] == "obj.value"
-    assert parsed["fixes_applied"][0]["post_edit_content"] == "obj?.value"
-    assert parsed["no_new_findings"] is False
-    assert parsed["no_actionable_fixes"] is False
+# The JSON contract itself is enforced in test_harness_schema.py, against
+# references/schemas/*.json and the golden fixtures — not re-typed here.
 
 
 def test_harness_mode_documents_all_termination_reasons():

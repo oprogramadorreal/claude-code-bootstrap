@@ -1,12 +1,12 @@
 ---
-description: Reviews local changes, an open PR/MR, or a branch diff against project coding guidelines using 5-7 parallel review agents (bug detection, security/logic, guideline compliance x2, code simplification, plus conditional test-coverage and contract-quality agents). High signal only — bugs, logic errors, security issues, guideline violations. Read-only; fixes or PR comments only on explicit approval. For iterative auto-fix, use /optimus:deep review.
+description: Reviews local changes, an open PR/MR, or a branch diff against the project's own coding guidelines, running parallel agents that each cover a different lens — bugs, security, guidelines, architecture, simplification, plus test coverage and API contracts when relevant. Excludes style and linter-catchable issues. Read-only: applies fixes or posts PR/MR comments only on explicit approval. For an iterative auto-fix loop, use /optimus:deep review.
 disable-model-invocation: true
 argument-hint: "[--pr N | --branch | path]"
 ---
 
 # Code Review
 
-Analyze local git changes (or a PR/MR) against the project's coding guidelines with parallel review agents. High-signal findings only — excludes style concerns, subjective suggestions, and linter-catchable issues.
+Analyze local git changes (or a PR/MR) against the project's coding guidelines with parallel review agents. Out of scope: style concerns, subjective preferences, and anything a linter already catches.
 
 ## Step 1: Parse Arguments and Verify Prerequisites
 
@@ -19,7 +19,7 @@ Analyze local git changes (or a PR/MR) against the project's coding guidelines w
 
 ## Step 2: Inline Harness Mode Detection
 
-If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow its single-iteration execution protocol — it covers progress-file reading, scope and file-list rules, agent-prompt overrides, and the apply/output protocol. Proceed through Steps 3–7, skip Step 8 (the orchestrator handles approval upfront), apply the fixes mechanically, emit the structured JSON per the harness-mode output protocol, and stop. Do not use `AskUserQuestion`. Do not loop.
+If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow its single-iteration execution protocol — it covers progress-file reading, scope and file-list rules, agent-prompt overrides, and the apply/output protocol. Proceed through Steps 3–7, skip Step 8 (the orchestrator handles approval upfront), apply the fixes mechanically, emit the structured JSON per the harness-mode output protocol — `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract it must satisfy — and stop. Do not use `AskUserQuestion`. Do not loop.
 
 If `HARNESS_MODE_INLINE` is NOT present, continue with the standard interactive flow below.
 
@@ -75,21 +75,21 @@ Present a brief context summary (docs loaded, docs missing with fallback status,
 
 ## Step 5: Parallel Multi-Agent Review (5–7 agents)
 
-Launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel. The full fan-out is the design — do not reduce the count to save tokens or time.
+Launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each agent below covers a lens the others do not, so dropping one leaves that category unreviewed; the conditional rules are how the fan-out shrinks on a narrow diff.
 
 | Agent | Role | Prompt file |
 |-------|------|-------------|
 | 1 — Bug Detector | Null access, off-by-one, races, resource leaks, type mismatches | `bug-detector.md` |
 | 2 — Security & Logic | Injection, XSS, secrets, missing auth, security-relevant API violations | `security-reviewer.md` |
-| 3 — Guideline Compliance A | Explicit violations of project docs with exact rule citations | `guideline-reviewer.md` |
-| 4 — Guideline Compliance B | Same task as Agent 3 — independent review reduces false negatives | `guideline-reviewer.md` |
+| 3 — Guideline Compliance | Explicit violations of project docs, with exact rule citations | `guideline-reviewer.md` |
+| 4 — Architecture & Boundaries | Layering and dependency direction, module responsibility, structural pattern drift, placement | `architecture-reviewer.md` |
 | 5 — Code Simplifier | Unnecessary complexity, dead code, removal-only simplifications | `code-simplifier.md` |
 | 6 — Test Guardian | Test coverage gaps, structural barriers to testability | `test-guardian.md` |
 | 7 — Contracts Reviewer | Backward compatibility, type safety, versioning, encapsulation | `contracts-reviewer.md` |
 
 Agents 1–5 always run. Agent 6 runs when test infrastructure is detected (`.claude/docs/testing.md` or a subproject `docs/testing.md` exists). Agent 7 runs when any changed file matches a contract pattern — directory patterns: `api/`, `routes/`, `controllers/`, `endpoints/`, `handlers/`, `graphql/`, `proto/`, `grpc/`; file patterns: `*.dto.*`, `*.schema.*`, `*.contract.*`, `openapi.*`, `swagger.*`, `*.proto`, `*.graphql`, `*.gql`. No match → skip Agent 7 entirely.
 
-**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md` — substitute the resolved absolute plugin root for every `$CLAUDE_PLUGIN_ROOT`, and inline or absolutize the bare `shared-constraints.md` references (subagents inherit neither the variable nor the cwd). Also: strip each prompt file's YAML frontmatter, and for Agents 3–4 replace `guideline-reviewer.md`'s "Dynamic Prompt Construction" section with the concrete doc-reading instructions for this project's layout from Step 4 (that section addresses the dispatcher, not the agent).
+**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace `guideline-reviewer.md`'s "Dynamic Prompt Construction" section with the concrete doc-reading instructions for this project's layout from Step 4 — that section addresses the dispatcher, not the agent.
 
 End every assembled prompt with the changed-file list (from Step 3, or `scope_files.current` in harness mode when pre-populated) followed by the diff hunks — at minimum the changed line ranges per file when the diff is too large to inline. Agents have no sanctioned way to compute the diff themselves; never send file paths alone. Findings are bounded by the Finding Cap in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`.
 
@@ -99,25 +99,19 @@ If the `pr-description` body captured in Step 3 is non-empty, prepend the PR/MR 
 
 ## Step 6: Validate Findings
 
-Treat agent findings as claims requiring independent evidence, not ground truth — verify against the actual code and report what you observed, never what "should" be true. For each finding:
+Read `$CLAUDE_PLUGIN_ROOT/references/finding-validation.md` and apply it to every finding — the context, intent, pre-existing, and runtime-assumption checks plus change-intent awareness from git history. One code-review addition:
 
-1. **Context check** — read ±30 lines around the flagged location to confirm the issue exists in context
-2. **Intent check** — comments, test assertions, or established patterns may explain the code (what looks like a bug may be intentional)
-3. **Pre-existing check** — the issue must be introduced by these changes, not pre-existing in unchanged code
-4. **Cross-agent consensus** — guideline findings flagged by both Agents 3 and 4 gain confidence
-5. **Runtime assumption check** — unvalidated, undocumented assumptions about inputs, dependencies, or environment in changed code strengthen a finding's confidence
-
-**Change-intent awareness**: for each file with findings, run `git log --no-merges --format="%h %s" -5 -- <file>`. If a recent commit shows deliberate introduction of code a finding wants to remove or revert (e.g., "fix null check", "harden auth flow") → reduce that finding's confidence one level (High → Medium, Medium → Low → drop). If the message is uninformative, run `git show <sha> -- <file>` and judge the diff for deliberate defensive code. Skip gracefully when `git log` fails or returns nothing.
+- **Cross-agent corroboration** — two agents independently flagging the same location raises confidence, even when their categories differ.
 
 ### PR/MR description as intent signal
 
 If a `pr-description` was captured, use it as an additional soft signal: an explicit explanation of *why* a flagged change was made, corroborated by git history → one confidence reduction; contradicted or unsupported by git history → trust the history (code over claims); silent about the finding → no adjustment. Never hard-filter a finding on the description alone.
 
-**Confidence**: High (clear evidence) and Medium (plausible, some evidence) proceed to Step 7; Low is dropped.
+**Confidence after validation**: High and Medium proceed to Step 7. A finding you could not confirm against the code is dropped — but count the drops and report the count in the Step 7 summary, so filtered recall stays visible instead of silent. An agent's Low label describes *its* evidence, not yours: if your own check confirms the issue, promote it rather than dropping it.
 
 ## Step 7: Consolidate and Present Findings
 
-- **Dedupe**: same file + line range + category → keep the more detailed version. Guideline findings from both Agents 3 and 4 merge into one, noted "confirmed by independent review".
+- **Dedupe**: same file + line range + category → keep the more detailed version. When two agents reached it independently, merge into one and note "confirmed by independent review".
 - **Contradictions**: findings on the same code region recommending opposite directions (e.g., "add validation" vs. "simplify this validation") → keep the higher severity; on ties, keep the security/correctness finding — security requirements justify proportionate complexity.
 - **Severity**: **Critical** — bugs, security vulnerabilities, runtime failures, Intent Mismatch contradicting a stated non-goal. **Warning** — guideline violations, missing error handling, coverage gaps on critical paths, backward-incompatible contract changes, Intent Mismatch on unsupported scope claims. **Suggestion** — quality improvements, minor drift, Intent Mismatch on partial matches.
 - **Finding cap**: max **15 domain findings** in the report, prioritized by severity then confidence. `Intent Mismatch` findings surface on top of the 15 — up to 5, deduplicated across agents, sorted by severity, presented after the domain findings (the per-agent budget is registered in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` "Finding Cap"). If more issues exist, note the count and suggest a narrower scope or `/optimus:deep review`.

@@ -1,14 +1,14 @@
 # optimus:code-review
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that reviews local changes, an open PR/MR, or a branch diff against your project's coding guidelines using 5 to 7 parallel review agents. High-signal findings only: bugs, logic errors, security issues, guideline violations. For iterative auto-fix in a loop, use [`/optimus:deep review`](../deep/README.md).
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that reviews local changes, an open PR/MR, or a branch diff against your project's coding guidelines using 5 to 7 parallel review agents, each covering a different lens. Reports bugs, logic errors, security issues, and guideline violations; skips style and anything a linter catches. For iterative auto-fix in a loop, use [`/optimus:deep review`](../deep/README.md).
 
 ## Features
 
 - **Local-first** — reviews uncommitted changes by default; with a clean tree it auto-routes to the open PR/MR (when HEAD is fully pushed) or the branch diff against the detected base
-- **5 to 7 parallel agents** — bug detection, security/logic, guideline compliance (x2 for cross-validation), code simplifier, plus test-guardian (when test infrastructure exists) and contracts-reviewer (when API/contract files changed)
+- **5 to 7 parallel agents, one lens each** — bug detection, security/logic, guideline compliance, architecture and boundaries, code simplifier, plus test-guardian (when test infrastructure exists) and contracts-reviewer (when API/contract files changed)
 - **Project-aware** — evaluates against your `coding-guidelines.md`, `testing.md`, `architecture.md`, `styling.md`; markdown instruction files in skill-authoring projects are judged by `skill-writing-guidelines.md` instead
 - **Intent-aware** — in PR/MR mode, agents receive the author's description (with guardrails against bias) and check `## Intent` claims against the implementation; git history protects deliberately introduced code from false positives
-- **Validated findings** — every agent finding is independently verified (context, intent, pre-existing, cross-agent consensus, runtime assumptions) before reporting; cross-agent contradictions are resolved by severity
+- **Report-then-filter** — agents surface everything they find with an honest confidence label rather than self-censoring; a validation pass then checks each one against the actual code (context, intent, pre-existing, corroboration, runtime assumptions), drops what it cannot confirm, and reports how many it dropped. Contradictions between agents are resolved by severity
 - **Actionable output** — file:line references, confidence, before/after sketches, guideline citations, severity; capped at 15 findings (+5 Intent Mismatch)
 - **GitHub and GitLab** — PR review via `gh`, MR review via `glab`; optional review comment posting
 - **Safe by default** — read-only; fixes and comments only on explicit approval. Works without `/optimus:init` (generic guidelines fallback), supports multi-repo workspaces, and skips submodules and generated files
@@ -49,7 +49,7 @@ Pre-commit self-review also works: run it on local uncommitted changes to catch 
 - Lines changed: +142 / -28
 - Findings: 2 (Critical: 1, Warning: 1, Suggestion: 0)
 - Docs used: CLAUDE.md, coding-guidelines.md, testing.md
-- Agents: bug-detector, security-reviewer, guideline-A, guideline-B, code-simplifier, test-guardian
+- Agents: bug-detector, security-reviewer, guideline-reviewer, architecture-reviewer, code-simplifier, test-guardian
 - Verdict: ISSUES FOUND
 
 ### Findings

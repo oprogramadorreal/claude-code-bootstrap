@@ -11,7 +11,7 @@ A Claude Code plugin combining markdown-based skill authoring (16 skills invoked
 | `.claude-plugin/` | Plugin manifests (plugin.json, marketplace.json) |
 | `agents/` | Plugin-level agent definitions (code-simplifier, test-guardian) — standalone, user-invocable |
 | `hooks/` | Plugin-level hooks (SessionStart for project state awareness) |
-| `references/` | Shared reference docs consumed by multiple skills |
+| `references/` | Shared reference docs consumed by multiple skills; `references/schemas/` holds the JSON contracts the harness parses |
 | `skills/<name>/` | One directory per skill (SKILL.md + README.md + optional agents/, references/, templates/) |
 | `scripts/harness_common/` | Orchestrator CLI (`cli.py`) + shared modules invoked by `/optimus:deep` |
 | `scripts/test-skills.sh` | Skill execution test runner |
@@ -37,7 +37,7 @@ A Claude Code plugin combining markdown-based skill authoring (16 skills invoked
 
 - **Subagent isolation** — each iteration runs in a fresh subagent context via the Agent tool. The orchestrator skill itself stays slim: it sees the subagent's terse JSON return, not the subagent's full analysis trace.
 - **File-based state** — all cross-iteration state lives in `.claude/<base>-deep-progress.json`. The orchestrator never holds findings in conversation prose.
-- **JSON output protocol** — the base skill emits `json:harness-output`; the CLI parses it.
+- **JSON output protocol** — the base skill emits `json:harness-output`; the CLI parses it. The contract lives in `references/schemas/*.schema.json`, not in prose: `test/harness-common/test_harness_schema.py` validates the golden fixtures under `test/harness-common/fixtures/` against those schemas, round-trips them through `cli parse`, and fails when the harness-mode docs stop naming a required field.
 - **stdlib only** — no pip dependencies beyond the standard library (dev deps are test/formatting tools only).
 - **UTF-8 pinned I/O** — every text-mode subprocess call passes `encoding="utf-8", errors="replace"` (never the locale codec — on cp1252 Windows a bare `text=True` silently loses child output on the first non-decodable byte), and `cli.main()` reconfigures its own stdout/stderr to UTF-8 so printing subagent-authored text through a pipe can't crash the run. Enforced by `test/harness-common/test_encoding_policy.py`.
 
@@ -61,7 +61,7 @@ A Claude Code plugin combining markdown-based skill authoring (16 skills invoked
 
 ### Reference Hierarchy
 
-- **Root** `references/`: harness protocol contracts (harness-mode, coverage-harness-mode, orchestrator-loop-single, orchestrator-loop-paired, harness-init-resume), shared agent rules (shared-agent-constraints, context-injection-blocks, agent-architecture), and the SDD precedence contract (sdd-mapping).
+- **Root** `references/`: harness protocol contracts (harness-mode, coverage-harness-mode, orchestrator-loop-single, orchestrator-loop-paired, harness-init-resume) plus their machine-readable form in `references/schemas/`, shared agent rules (shared-agent-constraints, context-injection-blocks, agent-architecture), the shared finding-validation protocol used by code-review and refactor, and the SDD precedence contract (sdd-mapping).
 - **Skill-level** `references/`: supplemental docs scoped to one skill or shared under a canonical owner (e.g., `init/references/multi-repo-detection.md`, `commit/references/branch-naming.md`, `brainstorm/references/plan-mode-handoff.md`).
 - Maximum depth: SKILL.md → reference → sub-reference (two levels). Cross-cutting references load conditionally (e.g., multi-repo detection only when the cwd has no `.git/`).
 

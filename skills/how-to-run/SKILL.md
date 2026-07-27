@@ -17,7 +17,12 @@ Generate or update `HOW-TO-RUN.md` at the project (or workspace) root: OS/hardwa
 
 ## Step 1: Detect project context (agent)
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/project-environment-detector.md` and `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/shared-constraints.md`. Launch 1 `general-purpose` Agent tool call whose prompt is, in order: the **Agent Constraints** section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`, the shared-constraints file, the contents of `$CLAUDE_PLUGIN_ROOT/skills/init/references/project-detection.md` and `$CLAUDE_PLUGIN_ROOT/skills/init/references/tech-stack-detection.md`, and the detector prompt. If the current directory has no `.git/` directory, also read `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` and include it — this skill supports multi-repo workspaces via a workspace-root file.
+Read `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/project-environment-detector.md` and `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/agents/shared-constraints.md`. Launch 1 `general-purpose` Agent tool call whose prompt is, in order: the **Agent Constraints** section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`, the shared-constraints file, the contents of `$CLAUDE_PLUGIN_ROOT/skills/init/references/tech-stack-detection.md`, and the detector prompt.
+
+Two conditional additions, each gated on a check you run before dispatching — a plain single-project repo needs neither, and they are ~130 lines together:
+
+- **Structure rules** — include `$CLAUDE_PLUGIN_ROOT/skills/init/references/project-detection.md` when the layout is not obviously a single project: a workspace manifest (`pnpm-workspace.yaml`, `lerna.json`, `turbo.json`, a root `package.json` with `workspaces`, a Cargo or Go workspace, a `.sln` spanning several projects), or manifest files in two or more subdirectories. When you skip it, say so in the prompt so the detector reports `Workspace kind: none` instead of re-deriving it.
+- **Multi-repo** — when the current directory has no `.git/` directory, include `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md`; this skill supports multi-repo workspaces via a workspace-root file.
 
 The detector only *flags* an unsupported stack (`Triggered: yes`); the fallback procedure runs here, not in the agent. Wait for the agent's **Context Detection Results**.
 
@@ -37,7 +42,7 @@ Launch 1 `general-purpose` Agent tool call whose prompt is, in order: the Contex
 
 ## Step 3: Assess and plan
 
-Present a per-aspect status table from the audit. Expand **External Services** into a sub-table — Service | Recommended runtime | Alternative | Reason — by reading `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/references/external-services-docker.md` and applying its Decision Heuristics to the endpoint labels. No per-service prompt here — the single exception is Step 4's multi-select downgrade prompt.
+Present a per-aspect status table from the audit. **Only when the detector reported at least one external service**, expand **External Services** into a sub-table — Service | Recommended runtime | Alternative | Reason — by reading `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/references/external-services-docker.md` and applying its Decision Heuristics to the endpoint labels. With none detected, skip that read entirely (it is ~300 lines that would all be dead), omit the sub-table, and skip Step 4's External Services section, its Web-Search Recipe, and its downgrade prompt. No per-service prompt here — the single exception is Step 4's multi-select downgrade prompt.
 
 **Caution rule:** existing content that seems intentionally unusual or whose purpose is beyond what the codebase reveals (custom flags, unexplained env vars, references to invisible external systems, unconfirmable hardware claims) — flag explicitly and ask; never silently include or exclude.
 
@@ -57,7 +62,7 @@ Read `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/references/guided-walkthrough.md` an
 
 ## Step 4: Generate content
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/references/how-to-run-sections.md` (signal→section digest, section shapes, workspace commands, schema bootstrap, multi-repo template) — `external-services-docker.md` is already loaded from Step 3.
+Read `$CLAUDE_PLUGIN_ROOT/skills/how-to-run/references/how-to-run-sections.md` (signal→section digest, section shapes, workspace commands, schema bootstrap, multi-repo template) — `external-services-docker.md` is already loaded from Step 3 when services exist; with none, neither it nor the recipe below applies.
 
 Run the §Web-Search Recipe for every service whose Recommended runtime is **Docker-preferred** or whose Alternative is **Docker (offline)**. If any service was downgraded per Decision Heuristics rule 5, emit ONE `AskUserQuestion` with `multiSelect: true` — header "Docker alternative", question "The Docker alternative failed validation for these services. Keep Docker anyway or fall back?" — one option per downgraded service labelled `<service>: <one-line failure reason>` (the specific validation that tripped); each option's description states checked = Docker alternative kept, unchecked = the rule-5 fallback for that service's classification (Local install only for rule-4 Docker-preferred local services, Shared-cloud no-Docker template for rule-3 Shared-cloud primary). Skip the prompt when nothing failed.
 
@@ -77,6 +82,7 @@ Generate only sections with at least one detected signal (per the digest), in ca
 - **Render once, not twice:** when the same fact fits two adjacent sections, render it in the one closer to the action and link from the other (e.g., the primary clone lives in Installation — or the multi-repo *Clone All* — only; consolidation rules in §External Services).
 - **Reconcile against script runners:** when a rendered command is `<tool> <subcmd> --<flag>` and a same-named script exists in `package.json` / `Justfile` / `Makefile` / launchSettings, open the script body — if the flag is absent, render the bare-tool form instead of the script wrapper.
 - **Table of contents:** render a `## Contents` block after the H1 when 7 or more catalog sections rendered; omit otherwise.
+- **Length matches substance:** this document is read by someone setting up for the first time, so every line should be a step they take or a fact they need. No filler sections, no restating a command in prose above the fence, no summary of what they just read.
 - **Approved unverifiable items:** render each as `Per <source_file> "<source_heading>": <sanitized_text>` in the matching section, applying `step6-verification-audits.md` §Render-time sanitization first — entries failing any check are removed; entries that pass store their exact full rendered line (including list marker/indentation) into `rendered_line` for Step 6's exact-match exemption.
 
 ## Step 5: Place content

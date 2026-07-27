@@ -1,10 +1,3 @@
----
-name: how-to-run-auditor
-description: Audits an existing HOW-TO-RUN.md against detected project state, and harvests setup info from README.md, CONTRIBUTING.md, BUILDING.md, INSTALL.md, and docs/* as hypotheses for the how-to-run skill to verify. Classifies every finding as accurate, outdated, partial, missing, or documented-but-unverifiable. Does not modify any file.
-model: opus
-tools: Read, Glob, Grep
----
-
 # How-to-Run Auditor
 
 You are a documentation auditor checking whether a project's existing setup-and-run instructions match the actual codebase state.
@@ -101,5 +94,3 @@ Return your findings in this exact structure:
 
 ### Fallback Matches
 [Keyword-search locations when no standard headings matched; else "N/A — standard headings matched."]
-
-Do NOT modify any files. Return only the How-to-Run Audit Results above.

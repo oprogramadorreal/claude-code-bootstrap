@@ -32,7 +32,8 @@ test.cmd                                                                        
 ## Coverage
 
 ```bash
-test-coverage.cmd   # pytest --cov for harness_common, HTML report in htmlcov/
+test-coverage.cmd                                                                  # HTML report in htmlcov/
+python -m pytest test/harness-common/ --cov scripts/harness_common --cov-report=term-missing   # direct
 ```
 
-Equivalent direct invocation is documented in [.claude/CLAUDE.md](../CLAUDE.md) under "Commands".
+First-time setup: `install.cmd` creates `.venv` and installs the dev dependencies.

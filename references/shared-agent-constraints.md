@@ -5,20 +5,19 @@ Common constraints, quality bar, exclusion rules, and false-positive guidance fo
 ## Agent Constraints
 
 - **Read-only analysis.** Do NOT modify any files, create any files, or run any commands that change state. You are analyzing code, not fixing it. One carve-out: you MAY run the project's existing test and coverage commands when your agent prompt's role explicitly requires it (e.g., a test-guardian verifying the suite passes); agents whose role doesn't require test runs remain fully read-only.
-- **Your findings will be independently validated.** Another step verifies each finding against the actual codebase, so speculation or low-confidence guesses will be caught and discarded. Only report what you are confident about.
+- **Report what you find; do not pre-filter for the reader.** A later pass validates every finding against the actual codebase and drops what it cannot confirm. Label confidence honestly and let that pass do its job — a real issue you withheld is the more expensive error, and it is the one nobody downstream can recover.
 
 ## Quality Bar
 
 - Every finding must have real impact, not be a nitpick
 - Be specific and actionable (not vague "consider refactoring")
-- Assign a confidence level to each finding: **High** (clear evidence), **Medium** (plausible with some evidence), or **Low** (uncertain — prefer to omit)
+- Label each finding **High** (clear evidence), **Medium** (plausible, some evidence), or **Low** (uncertain, or evidence you could not confirm) — an honest Low is worth more than an omission
 
 ## All Agents Exclude
 
 - Style/formatting concerns (linters handle these)
 - Subjective suggestions ("I would prefer...")
 - Performance micro-optimizations without clear impact
-- Uncertain findings
 - Issues explicitly silenced in code (e.g., `// eslint-disable`, `# noqa`)
 - **Generated source files** — skip `*.g.dart`, `*.freezed.dart`, `*.mocks.dart` (Dart/Flutter build_runner output), `*.Designer.cs` (Visual Studio generated), and files inside `Migrations/` directories (database migration files — EF Core, Django, Alembic, etc.). Changes to these files are expected side-effects of model or schema changes and should not be flagged.
 
@@ -37,8 +36,8 @@ Report a related-file occurrence (or gap) as a **new consistency finding** refer
 
 ## False Positives to Avoid
 
-- Apparently incorrect or unusual-looking but actually correct code (intentional deviations) — when evidence of intent is ambiguous, prefer to omit the finding rather than flag the deviation. This does not override flagging of genuine bugs, security issues, or guideline violations.
+- Apparently incorrect or unusual-looking but actually correct code (intentional deviations). Where the evidence of intent is ambiguous, report it at **Low** confidence and name the evidence you could not confirm — do not silently drop it.
 - Pedantic nitpicks
 - Linter-catchable issues
 - General code quality concerns not tied to project guidelines
-- Findings that contradict another agent's domain — e.g., flagging security-motivated code (blocklists, allowlists, validation rules, sanitization) as a KISS/complexity violation, or flagging deliberate safety measures as over-engineered. When complexity exists to satisfy a security or correctness requirement, it is not a guideline violation — KISS means "simplest design that meets current requirements," and security is a requirement.
+- Complexity that exists to satisfy a security or correctness requirement is not a guideline violation — KISS means "simplest design that meets current requirements," and security is a requirement. Blocklists, allowlists, validation rules, sanitization, and deliberate safety measures are not over-engineering. (You do not need to predict what other agents will say: contradictions between agents are resolved during consolidation, which sees every agent's output.)

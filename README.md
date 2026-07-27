@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.1.4-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.2.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -47,7 +47,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 | [`/optimus:init`](skills/init/README.md) | Initializes project documentation, formatter hooks, and test infrastructure from your actual codebase. Offers new-project scaffolding on empty directories; audits and syncs on re-run. |
 | [`/optimus:brainstorm`](skills/brainstorm/README.md) | Structured design brainstorming — explores the codebase, proposes approaches with trade-offs, writes an approved spec to `docs/specs/` that `/optimus:tdd` consumes. `scaffold` mode stamps an empty docs-first steering cascade (product vision, MVP PRD, tech stack) for a human to fill. |
 | [`/optimus:jira`](skills/jira/README.md) | Fetches a JIRA issue via MCP and distills it into a structured task at `docs/jira/` that downstream skills auto-detect. Analyzes the codebase for missing criteria and risks; recommends the next skill by complexity. |
-| [`/optimus:tdd`](skills/tdd/README.md) | Test-driven development through Red-Green-Refactor cycles with per-behavior commits, a parallel quality gate, and branch push. Auto-detects specs from `docs/specs/` or `docs/jira/`. *Requires init.* |
+| [`/optimus:tdd`](skills/tdd/README.md) | Test-driven development through Red-Green-Refactor cycles with per-behavior commits and branch push. Auto-detects specs from `docs/specs/` or `docs/jira/`. *Requires init.* |
 | [`/optimus:unit-test`](skills/unit-test/README.md) | Discovers coverage gaps and writes convention-following tests. Never refactors source code; stops with a triage pointer when the test baseline is broken. *Requires init.* |
 | [`/optimus:refactor`](skills/refactor/README.md) | Refactors for guideline compliance and testability using parallel analysis agents, with `testability` and `guidelines` focus modes. *Run init first.* |
 | [`/optimus:code-review`](skills/code-review/README.md) | Reviews changes for bugs, security issues, and guideline compliance using parallel review agents. Auto-routes to PR mode on a clean branch with an open PR/MR and reads the PR description as author intent. *Run init first.* |

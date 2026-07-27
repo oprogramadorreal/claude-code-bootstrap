@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oprogramadorreal/optimus-claude/references/schemas/coverage-harness-output.schema.json",
+  "title": "Harness output (coverage variant)",
+  "description": "The object the unit-test phase emits inside a ```json:harness-output fenced block when running under HARNESS_MODE_INLINE for the coverage deep target. Parsed by scripts/harness_common/parser.py. This schema is the contract; references/coverage-harness-mode.md step 5 shows it in context.",
+  "type": "object",
+  "required": [
+    "cycle",
+    "phase",
+    "coverage",
+    "tests_written",
+    "untestable_code",
+    "bugs_discovered",
+    "no_new_tests",
+    "no_untestable_code",
+    "no_coverage_gained",
+    "blocked"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "cycle": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The cycle this output belongs to, copied from cycle.current in the progress file."
+    },
+    "phase": { "type": "string", "enum": ["unit-test"] },
+    "coverage": {
+      "type": "object",
+      "required": ["tool", "before", "after", "delta"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "type": ["string", "null"] },
+        "before": { "type": ["number", "null"] },
+        "after": { "type": ["number", "null"] },
+        "delta": { "type": ["number", "null"] }
+      }
+    },
+    "tests_written": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "target_file", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "target_file": { "type": "string" },
+          "target_description": { "type": "string" },
+          "test_count": { "type": "integer", "minimum": 0 },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail-fixed", "fail-abandoned"]
+          },
+          "failure_reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "untestable_code": {
+      "type": "array",
+      "description": "Items the refactor phase of the next cycle targets with testability focus.",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "barrier"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "end_line": { "type": "integer" },
+          "function": { "type": "string" },
+          "barrier": { "type": "string" },
+          "barrier_description": { "type": "string" },
+          "suggested_refactoring": { "type": "string" }
+        }
+      }
+    },
+    "bugs_discovered": {
+      "type": "array",
+      "description": "Bugs found in existing code. Reported, never fixed — this phase only adds tests.",
+      "items": {
+        "type": "object",
+        "required": ["file", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "description": { "type": "string" },
+          "severity": { "type": "string", "enum": ["High", "Medium", "Low"] }
+        }
+      }
+    },
+    "no_new_tests": { "type": "boolean" },
+    "no_untestable_code": { "type": "boolean" },
+    "no_coverage_gained": {
+      "type": "boolean",
+      "description": "True when the coverage delta is zero or negative."
+    },
+    "blocked": {
+      "type": ["string", "null"],
+      "description": "Null in the normal case. Otherwise a one-line reason naming the fired Step 2 stop gate; a non-null value exits the orchestrator's paired loop instead of dispatching further cycles."
+    }
+  }
+}

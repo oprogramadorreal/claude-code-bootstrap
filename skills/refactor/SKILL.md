@@ -53,7 +53,7 @@ Analyze highest-churn areas first; for full-project scope on a large codebase, s
 
 ## Step 4: Parallel analysis (4 agents)
 
-Launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel. The full fan-out is the design — do not reduce the count to save tokens or time.
+Launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each covers a lens the others do not, so dropping one leaves that category unanalyzed.
 
 | Agent | Prompt file | Finds |
 |---|---|---|
@@ -66,16 +66,9 @@ Read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/refactor/agents/` (shared
 
 ## Step 5: Validate findings and present the plan
 
-Treat agent findings as claims requiring independent evidence, not ground truth. For each finding:
+Read `$CLAUDE_PLUGIN_ROOT/references/finding-validation.md` and apply it to every finding. Two refactor deltas: skip its **Pre-existing** check — this skill analyzes existing code by design, not a diff — and treat Agents 1 and 3 landing on the same location as corroboration.
 
-- **Context** — read ±30 lines around the flagged location to confirm the issue exists in context
-- **Intent** — comments, test assertions, or established patterns may show the code is deliberate
-- **Consensus** — Agents 1 and 3 flagging the same location raises confidence
-- **Runtime assumptions** — unvalidated assumptions about inputs, dependencies, or environment strengthen a finding
-
-**Change-intent awareness:** for each file with findings, run `git log --no-merges --format="%h %s" -5 -- <file>`. If a recent commit deliberately introduced what a finding would revert (e.g., "add dependency injection"), reduce that finding's confidence one level (High → Medium, Medium → Low). When messages are uninformative, inspect the diff with `git show <sha> -- <file>` for deliberate structural intent and apply the same reduction.
-
-Keep **High**-confidence findings, keep **Medium** with a note, drop **Low**.
+Keep **High**-confidence findings, keep **Medium** with a note, drop what your own check could not confirm — and report how many you dropped, so filtered recall stays visible. An agent's **Low** label describes its evidence, not yours: promote it if your check confirms the issue.
 
 **Deduplicate and resolve:** same file/line-range/category from two agents → keep the more detailed version; an Agent 1 + Agent 3 overlap → merge and note "confirmed by independent review". Contradictory findings on the same region (opposite directions) → higher severity wins; tie → active focus wins; no focus → testability wins.
 
@@ -117,7 +110,7 @@ Severity: **Critical** — testability barrier blocking unit testing, cross-cutt
 
 Use `AskUserQuestion` (header "Action"): **Apply all** / **Selective** — ask which finding numbers / **Skip** — keep the report as reference.
 
-Apply each approved finding with Edit, then run the project's test command from `.claude/CLAUDE.md` if one exists: run it fresh, read the complete output, and report the actual result with evidence (e.g. "14 passed, 1 failed") — never claim "should pass". If tests fail, revert ALL changes, then re-apply one at a time with a test run after each, keeping only the changes that pass. If no test command exists, warn the user that the changes were applied without automated verification and carry higher risk.
+Apply each approved finding with Edit, then run the project's test command from `.claude/CLAUDE.md` if one exists and report the actual result. If tests fail, revert ALL changes, then re-apply one at a time with a test run after each, keeping only the changes that pass. If no test command exists, warn the user that the changes were applied without automated verification and carry higher risk.
 
 Close with a final summary: scope analyzed, changes applied/skipped/reverted (with file references), test results, findings beyond the cap, and how many changes made code testable for `/optimus:unit-test`.
 

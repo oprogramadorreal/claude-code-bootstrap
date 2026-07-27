@@ -54,6 +54,8 @@ Launch all agents in parallel — same agents, same prompts, same parallelism as
 
 Apply the same validation protocol as the skill's normal validation step. Independently verify each finding, check for false positives, apply change-intent awareness from git history.
 
+**Auto-apply gate.** Nothing here gets user review before it lands, so only findings your own validation *confirms* earn a fix in step 6. Still record an unconfirmed finding in `new_findings` with its confidence — it belongs in the report and in the next iteration's context — but emit no `pre_edit_content`/`post_edit_content` pair for it. Agents are told to report rather than pre-filter; this gate, not their silence, is what keeps auto-applied edits honest.
+
 ### 5. Consolidate and deduplicate findings
 
 Apply the same deduplication rules as the skill's normal mode, matching against `accumulated-findings` by file + line range + category:
@@ -81,7 +83,7 @@ The orchestrator owns all test execution and bisection — running them here wou
 
 ### 8. Output structured JSON
 
-At the end of the response, output the iteration results in this exact format:
+At the end of the response, emit the iteration results in a `json:harness-output` fenced block. `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract — field names, types, which are required, and what `no_actionable_fixes` means — and `test/harness-common/fixtures/harness-output.golden.json` is a complete worked instance. The shape:
 
 ````
 ```json:harness-output
@@ -97,7 +99,7 @@ At the end of the response, output the iteration results in this exact format:
       "summary": "<one-sentence, max 120 chars>",
       "fix_description": "<brief description of the fix applied>",
       "severity": "<Critical | Warning | Suggestion>",
-      "confidence": "<High | Medium>",
+      "confidence": "<High | Medium | Low>",
       "agent": "<agent-name>",
       "pre_edit_content": "<exact original code>",
       "post_edit_content": "<exact replacement code>"
@@ -108,7 +110,7 @@ At the end of the response, output the iteration results in this exact format:
   ],
   "fixes_skipped_persistent": ["<id of findings skipped due to persistent status>"],
   "no_new_findings": <true if zero new findings discovered>,
-  "no_actionable_fixes": <true ONLY if every finding has empty pre_edit_content (i.e., no swap pair was captured); any finding with a non-empty pre_edit_content + a different post_edit_content counts as actionable, regardless of file type — markdown, JSON, config, and code edits all qualify>
+  "no_actionable_fixes": <true only when no finding captured a swap pair — see the schema>
 }
 ```
 ````

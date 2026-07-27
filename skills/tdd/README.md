@@ -62,15 +62,16 @@ Each behavior runs one cycle: a failing test, the minimum code to pass it, a cle
 
 1. Creates `<type>/<slug>` (e.g., `feat/add-password-reset`) from the current branch; optionally isolates work in a `.worktrees/` git worktree. The original branch is never modified
 2. Commits after each completed cycle with a conventional message; commits any remaining work at the end
-3. Runs a parallel-agent quality gate (code-simplifier + test-guardian) over the session's changed files, then pushes the branch to `origin`
-4. Recommends `/optimus:pr` in the same conversation — it reads the `## TDD Summary` block to populate the PR's Intent and per-behavior Test plan
+3. Pushes the branch to `origin`
+4. Recommends `/optimus:code-review` for the cross-cycle pass, then `/optimus:pr` in the same conversation — the latter reads the `## TDD Summary` block to populate the PR's Intent and per-behavior Test plan
+
+Earlier versions ran a two-agent quality gate inline at the end of the run. That reviewed work this same conversation had just written, and duplicated a weaker version of `/optimus:code-review`; the review now happens in the skill built for it, where the full agent fan-out and finding validation apply.
 
 ## Skill structure
 
 | File | Purpose |
 |---|---|
-| `SKILL.md` | The 9-step TDD workflow |
-| `references/quality-gate.md` | Post-cycle parallel quality agents (code-simplifier, test-guardian) |
+| `SKILL.md` | The 8-step TDD workflow |
 | `references/testing-anti-patterns.md` | Mocking discipline and gate questions (read before writing mocks) |
 | `references/spec-context-detection.md` | Spec/JIRA context cascade + long-spec distillation |
 | `references/coverage-detection.md` | Coverage-command detection + omit rule |

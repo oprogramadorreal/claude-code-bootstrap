@@ -70,7 +70,7 @@ Per-test workflow, for each approved item:
 
 ### Final verification (normal mode only)
 
-After all tests are written, run the **full test suite** to ensure no regressions: run it fresh, read the complete output, and report the actual result with evidence (e.g. "14 passed, 1 failed") — never claim "should pass". If a newly added test file causes regressions (itself failing under the full suite, or breaking other tests), revert it. Harness mode: skip this run and any `scripts/*.sh` wrappers — the orchestrator owns the full run and bisection.
+After all tests are written, run the **full test suite** to ensure no regressions and report the actual result. If a newly added test file causes regressions (itself failing under the full suite, or breaking other tests), revert it. Harness mode: skip this run and any `scripts/*.sh` wrappers — the orchestrator owns the full run and bisection.
 
 ## Step 5: Summary
 
@@ -102,4 +102,4 @@ If untestable code was flagged, recommend `/optimus:refactor testability` in a f
 
 ## Step 6: Harness Output (harness mode only)
 
-If running under `HARNESS_MODE_INLINE`, output structured JSON **instead** of the Step 5 summary — the exact schema lives in `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md` "Output structured JSON". Emit the fenced block, then stop — do not loop, do not present recommendations, do not use `AskUserQuestion`.
+If running under `HARNESS_MODE_INLINE`, output structured JSON **instead** of the Step 5 summary — `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md` "Output structured JSON" shows the shape in context, and `$CLAUDE_PLUGIN_ROOT/references/schemas/coverage-harness-output.schema.json` is the contract it must satisfy. Emit the fenced block, then stop — do not loop, do not present recommendations, do not use `AskUserQuestion`.

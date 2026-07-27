@@ -10,7 +10,7 @@ Read `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` for the base a
 
 - Input-dependent issues
 - Pre-existing issues in unchanged code (unless security/bug directly adjacent to changed lines)
-- **Add-complexity suggestions without a specific bug or guideline.** Any finding whose suggested fix would *add* code (new helpers, abstractions, validation, branches, files, or net-add LOC) must cite either (a) a specific Critical-severity bug or security issue it prevents, or (b) an explicit project guideline rule it satisfies. Otherwise omit — code that is already simple is a valid outcome. Prefer findings that remove complexity over findings that add it. This blocks "could be more thorough / more abstracted / more defensive" suggestions, not legitimate fixes for real defects.
+- **Add-complexity suggestions without a specific bug or guideline.** Any finding whose suggested fix would *add* code (new helpers, abstractions, validation, branches, files, or net-add LOC) must cite either (a) a specific bug or security issue it prevents, at any severity, or (b) an explicit project guideline rule it satisfies. Otherwise omit — code that is already simple is a valid outcome. Prefer findings that remove complexity over findings that add it. This blocks "could be more thorough / more abstracted / more defensive" suggestions, not legitimate fixes for real defects.
 
 ## Scope-expansion carve-out
 

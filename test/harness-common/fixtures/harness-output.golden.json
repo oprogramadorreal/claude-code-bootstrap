@@ -1,0 +1,80 @@
+{
+  "iteration": 3,
+  "new_findings": [
+    {
+      "file": "src/app.js",
+      "line": 42,
+      "end_line": 42,
+      "category": "Bug",
+      "guideline": "General: avoid null dereference",
+      "summary": "Add null check before accessing property",
+      "fix_description": "Added null guard",
+      "severity": "Critical",
+      "confidence": "High",
+      "agent": "bug-detector",
+      "pre_edit_content": "obj.value",
+      "post_edit_content": "obj?.value"
+    },
+    {
+      "file": "src/legacy.js",
+      "line": 8,
+      "end_line": 12,
+      "category": "Code Quality",
+      "guideline": "General: remove dead code",
+      "summary": "Unreachable branch left behind by an earlier refactor",
+      "fix_description": "Deleted the dead branch",
+      "severity": "Suggestion",
+      "confidence": "Medium",
+      "agent": "code-simplifier",
+      "pre_edit_content": "if (false) {\n  legacyPath();\n}",
+      "post_edit_content": ""
+    },
+    {
+      "file": "src/queue.js",
+      "line": 77,
+      "end_line": 77,
+      "category": "Bug",
+      "guideline": "General: unvalidated assumption",
+      "summary": "Assumes the worker pool is non-empty; unconfirmed at this call site",
+      "fix_description": "",
+      "severity": "Warning",
+      "confidence": "Low",
+      "agent": "bug-detector",
+      "pre_edit_content": "",
+      "post_edit_content": ""
+    }
+  ],
+  "fixes_applied": [
+    {
+      "file": "src/app.js",
+      "line": 42,
+      "end_line": 42,
+      "category": "Bug",
+      "guideline": "General: avoid null dereference",
+      "summary": "Add null check before accessing property",
+      "fix_description": "Added null guard",
+      "severity": "Critical",
+      "confidence": "High",
+      "agent": "bug-detector",
+      "pre_edit_content": "obj.value",
+      "post_edit_content": "obj?.value"
+    },
+    {
+      "file": "src/legacy.js",
+      "line": 8,
+      "end_line": 12,
+      "category": "Code Quality",
+      "guideline": "General: remove dead code",
+      "summary": "Unreachable branch left behind by an earlier refactor",
+      "fix_description": "Deleted the dead branch",
+      "severity": "Suggestion",
+      "confidence": "Medium",
+      "agent": "code-simplifier",
+      "pre_edit_content": "if (false) {\n  legacyPath();\n}",
+      "post_edit_content": ""
+    }
+  ],
+  "fixes_skipped_persistent": ["src/auth.js:120:Guideline Violation"],
+  "no_new_findings": false,
+  "no_actionable_fixes": false
+}
