@@ -22,7 +22,7 @@ Report each finding in this exact shape. Every agent uses `Current:`/`Suggested:
 
 - **File:** file:line
 - **Category:** [agent-specific — see your prompt file]
-- **Confidence:** High | Medium
+- **Confidence:** High | Medium | Low — Low means you could not confirm the evidence yourself. Use it; do not round up to Medium and do not drop the finding. Step 6 validation promotes or drops it.
 - **Guideline:** [exact project-doc rule, "General: <domain>", or for Intent Mismatch the literal `Intent (see Intent claim)`]
 - **Intent claim:** [Intent Mismatch only — the quoted claim from `## Intent`]
 - **Issue:** [concrete description]
@@ -41,7 +41,7 @@ When a PR/MR Context Block is present in your prompt **and** the description inc
 - A code change that contradicts a stated non-goal (e.g., Non-goals says "no schema migration in this PR" but the diff adds a migration file).
 - An implementation delivering the wrong shape of the claim (e.g., Intent says "validate email format" but the code only checks for a non-empty string).
 
-**Confidence:** High — the claim is specific and testable and the diff clearly does not deliver it (or contradicts it); Medium — the claim is approximate or only partially delivered.
+**Confidence:** High — the claim is specific and testable and the diff clearly does not deliver it (or contradicts it); Medium — the claim is approximate or only partially delivered; Low — you could not confirm whether the diff delivers it.
 
 **Severity** (agents with a Severity field): Critical — a stated non-goal is contradicted; Warning — a stated scope claim has no supporting code; Suggestion — partial match.
 

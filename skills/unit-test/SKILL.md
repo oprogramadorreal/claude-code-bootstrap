@@ -60,7 +60,7 @@ Test-writing rules:
 
 - Follow `coding-guidelines.md` (quality, naming, DRY) and `testing.md` (framework idioms, file naming, directory structure). Before writing the first test, extract the concrete patterns of existing test files — imports, assertion style, naming, placement, shared fixtures, test organization — and replicate them consistently.
 - Before writing any test that needs a mock or fixture, read `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/testing-anti-patterns.md` — prefer real code over mocks, mock only external services or non-deterministic dependencies, never assert on mock behavior.
-- If a test file for the module already exists, add cases there instead of creating a new file. Reuse existing fixtures, helpers, and factories; extract repeated setup into shared fixtures instead of duplicating it.
+- If a test file for the module already exists, add cases there instead of creating a new file. Reuse existing fixtures, helpers, and factories as they are. If the cases you are adding repeat setup among themselves, factor it into a new fixture — never restructure existing tests to share one.
 
 Per-test workflow, for each approved item:
 

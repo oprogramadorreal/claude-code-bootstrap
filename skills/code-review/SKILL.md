@@ -169,7 +169,7 @@ Verdict **ISSUES FOUND** → `AskUserQuestion` (header "Action", question "How w
 
 ## Important
 
-- This skill is read-only by default: never modify files, commit, push, or post comments without explicit user approval. Approved fixes remain local modifications for the user to review with `git diff` before committing.
+- Outside harness mode this skill is read-only: never modify files, commit, push, or post comments without explicit user approval, and approved fixes remain local modifications the user reviews with `git diff` before committing. Under `HARNESS_MODE_INLINE` the orchestrator holds that approval and Step 2's protocol governs instead.
 - When changes are too broad for effective review, recommend narrowing scope.
 
 Close by recommending the next step: issues fixed → `/optimus:commit`; clean or fixes skipped → `/optimus:pr` (skip when already reviewing a PR/MR) — either way, stay in this conversation so the implementation context is captured. For iterative auto-fix, run `/optimus:deep review` in a fresh conversation.

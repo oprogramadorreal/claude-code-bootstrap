@@ -116,7 +116,7 @@ Close with a final summary: scope analyzed, changes applied/skipped/reverted (wi
 
 ## Important
 
-- NEVER modify files, commit, push, or post comments without explicit user approval — all changes stay local for `git diff` review; this skill is read-only by default
+- Outside harness mode, never modify files, commit, or push without explicit user approval — all changes stay local for `git diff` review. Under `HARNESS_MODE_INLINE` the orchestrator holds that approval and Step 2's protocol governs instead.
 - When the scope is too broad for effective analysis, recommend narrowing it
 
 If fixes were applied, recommend `/optimus:commit` next — the user should stay in this conversation so the implementation context is captured — then `/optimus:unit-test` in a fresh conversation to cover the restructured code. For iterative refactoring in an automated loop, mention `/optimus:deep refactor` (requires a test command in `.claude/CLAUDE.md`).
