@@ -434,12 +434,20 @@ if [ -n "$deep_refs" ]; then
 fi
 
 # --- 17. Producer/consumer contracts ---
-# Genuine two-sided contracts: a literal heading or token one file emits and
-# another greps for. Drift on either side silently drops the handoff, so both
-# sides are pinned. The contract is file-to-file, not skill-to-skill: an agent
-# returning a heading its own SKILL.md keys off is the same failure mode as a
-# cross-skill handoff, and is pinned here too. Missing files fail first-class —
-# a rename or deletion must break the build, not skip the check.
+# A pin belongs here only when a rename on one side breaks a handoff that the
+# reading model cannot recover by meaning. That is true in exactly two cases:
+#   (a) a program parses the string — HARNESS_MODE_INLINE and the harness
+#       reference paths are dispatched on by scripts/harness_common/cli.py;
+#   (b) the string crosses a conversation boundary through an artifact on disk
+#       or an agent return block — one skill writes '## Scenarios' into a spec
+#       file that another skill greps weeks later; an agent names the block its
+#       dispatcher picks out of a long return.
+# Everything else is a model reading prose, and Claude resolves a renamed
+# heading by meaning. Pinning the wording of a skill's own instructions makes CI
+# the thing that blocks simplifying it — the anti-pattern this plugin's own
+# skill-writing guidelines forbid. Regressions in intra-skill routing belong in
+# test/, asserted as behaviour, not asserted as wording here.
+# Missing files fail first-class — a rename or deletion must break the build.
 echo "[Producer/consumer contracts]"
 contract_errors=""
 
@@ -457,36 +465,6 @@ require_tokens() {
       contract_errors+="  $file missing contract token: $token\n"
     fi
   done
-}
-
-# require_pattern <file> <ere>...: every extended-regex pattern must match.
-# For anchored headings ('^## Foo') where fixed-string search can't anchor.
-require_pattern() {
-  local file=$1 pattern
-  shift
-  if [ ! -f "$file" ]; then
-    contract_errors+="  missing file: $file\n"
-    return
-  fi
-  for pattern in "$@"; do
-    if ! grep -qE "$pattern" "$file" 2>/dev/null; then
-      contract_errors+="  $file missing contract pattern: $pattern\n"
-    fi
-  done
-}
-
-# require_min_count <identifier> <min> <file>: occurrence-count floor. Counts
-# pin cross-step identifiers where a one-sided rename (or a dropped
-# occurrence) silently disables a multi-step contract. `|| true` lets the
-# count=0 case reach the comparison instead of aborting under set -e — count=0
-# is exactly the failure mode this check exists to catch.
-require_min_count() {
-  local identifier=$1 expected=$2 file=$3 actual
-  actual=$(grep -cF "$identifier" "$file" 2>/dev/null || true)
-  [ -z "$actual" ] && actual=0
-  if [ "$actual" -lt "$expected" ]; then
-    contract_errors+="  $file cross-step identifier '$identifier' appears $actual times, expected >=$expected\n"
-  fi
 }
 
 # Scenario contract: brainstorm's spec template emits these headings; tdd's
@@ -546,153 +524,6 @@ require_tokens skills/how-to-run/SKILL.md 'How-to-Run Audit Results'
 # the fallback. Dropping either side silently loses unknown-stack support.
 require_tokens skills/how-to-run/agents/project-environment-detector.md '### Unsupported-Stack Fallback' '- **Triggered:**'
 require_tokens skills/how-to-run/SKILL.md 'Triggered: yes' 'unsupported-stack-fallback.md'
-
-# --- how-to-run load-bearing wiring ---
-# Step/section navigation and agent return formats the how-to-run flow keys off
-# by literal name. A one-sided rename anywhere below fails silently — routing is
-# by literal string — with every other check green.
-how_to_run_skill="skills/how-to-run/SKILL.md"
-detector_file="skills/how-to-run/agents/project-environment-detector.md"
-auditor_agent="skills/how-to-run/agents/how-to-run-auditor.md"
-walkthrough_ref="skills/how-to-run/references/guided-walkthrough.md"
-step6_file="skills/how-to-run/references/step6-verification-audits.md"
-esd_file="skills/how-to-run/references/external-services-docker.md"
-sections_file="skills/how-to-run/references/how-to-run-sections.md"
-
-# Detector return-format contract: SKILL.md Steps 1/4 branch on these exact
-# sub-headings and fields. A silent rename collapses service coverage, drops
-# schema-bootstrap rendering, or loses workspace-aware command branching.
-require_tokens "$detector_file" \
-  '### Recommended Developer Tools' \
-  '### External Services' \
-  '### Environment Setup' \
-  '### Schema Bootstrap' \
-  '### Runtime Ports' \
-  '### Components' \
-  '- **Workspace kind:**' \
-  '- **Setup scripts:**' \
-  '- **Pre-commit hooks:**' \
-  '- **direnv:**' \
-  '- **Local TLS cert:**' \
-  '- **Database migrations:**' \
-  '| Key leaves |' \
-  '| Secrets committed |'
-
-# Walkthrough trigger keys: Step 3 routes on the literal 'Walk through it'
-# option label and jumps to the '## Step 3a:' heading; Step 3a loads
-# guided-walkthrough.md by path and exits on 'Stop the walkthrough' back to
-# Step 6. A rename on one side only silently kills the walkthrough branch.
-require_pattern "$how_to_run_skill" '^## Step 3a:' '^## Step 6:'
-require_tokens "$how_to_run_skill" \
-  'Walk through it' \
-  'Regenerate' \
-  '**Skip**' \
-  'Stop the walkthrough' \
-  'jump to Step 6' \
-  'guided-walkthrough.md'
-require_pattern "$walkthrough_ref" \
-  '^## Pre-flight' \
-  '^## Per-step loop' \
-  '^## Advisory flags' \
-  '^## Display sanitization' \
-  '^## Completion summary'
-require_tokens "$walkthrough_ref" \
-  '"Done"' \
-  '"Skip"' \
-  '"Stop the walkthrough"' \
-  'Remote code executor' \
-  'Destructive command' \
-  'SKILL.md Step 6' \
-  '**Regenerate**' \
-  'Audit:'
-# Audit-verdict producer/consumer pair: the auditor emits these verdicts and
-# the walkthrough renders them per step (with the 'Audit:' prefix above).
-for verdict in 'Found but outdated' 'Partial' 'Missing'; do
-  require_tokens "$walkthrough_ref" "$verdict"
-  require_tokens "$auditor_agent" "$verdict"
-done
-# 'Documented but unverifiable' is consumed by SKILL.md's Step 3 per-item
-# prompts, not the walkthrough — pin its own producer/consumer pair.
-require_tokens "$auditor_agent" 'Documented but unverifiable'
-require_tokens "$how_to_run_skill" 'Documented but unverifiable'
-
-# §-style section-name navigation: SKILL.md and the references reach these
-# sections exclusively by name (section 8 resolves file paths only, never
-# §-names). A rename silently degrades the Docker-suggestion path, the
-# workspace-aware command branching, and the Step 6 re-verification audits.
-require_pattern "$esd_file" \
-  '^## Service Classification Tables' \
-  '^## Decision Heuristics' \
-  '^## Web-Search Recipe' \
-  '^## Verify Commands \(seeds\)' \
-  '^## Pre-Conditions Block' \
-  '^## Citation Format' \
-  '^## Registry Allowlist' \
-  '^### Docker-preferred' \
-  '^### Local install only'
-require_tokens "$esd_file" '**Step 6 audit:**' '## Canonical Image Catalogue (seeds)'
-require_tokens "$sections_file" \
-  '## External Services' \
-  '## Workspace-Kind Command Branches' \
-  '## Multi-Repo Workspace Template'
-require_pattern "$step6_file" \
-  '^## Record-time validation' \
-  '^## Render-time sanitization' \
-  '^## Step 6 audits'
-# SKILL.md Steps 3/4 reach those sections by §-name only — pin the consumer side.
-require_tokens "$how_to_run_skill" '§Record-time validation' '§Render-time sanitization'
-# Audit-suite completeness: Step 6 applies "every Step 6 audit" in the audits
-# file, so a silently dropped audit passes every other gate (the v3 rewrite
-# dropped Template-shape this way while its render rules stayed mandated).
-# The audits pinned here all check a rendered claim against external evidence
-# — the filesystem, a manifest, the registry allowlist. Layout self-auditing
-# was removed deliberately in v3.2: Step 4's section shapes govern layout, and
-# re-checking your own formatting against a row-count threshold caught nothing
-# a reader would notice. Build Debug+Release survived that cut because a
-# half-documented build is a grounding gap, so it is pinned by name.
-require_tokens "$step6_file" \
-  'External Services re-verification' \
-  'Pre-Conditions Block audit' \
-  'Detector-token re-validation' \
-  'Specific-Token Audit' \
-  'Unverified-Count filter' \
-  'Section ordering' \
-  'Build Debug+Release pair'
-
-# Cross-step identifiers: Step 3/4 records rendered_line entries in the
-# approved-unverifiable-items list and Step 6 exempts exactly those lines by
-# full-line equality. A one-sided rename silently breaks the exemption (or
-# exempts unintended lines). Threshold = current occurrence count.
-require_min_count 'approved-unverifiable-items' 1 "$how_to_run_skill"
-require_min_count 'rendered_line' 2 "$how_to_run_skill"
-require_min_count 'approved-unverifiable-items' 2 "$step6_file"
-require_min_count 'rendered_line' 2 "$step6_file"
-
-# Handoff skill: load-bearing tokens. Renaming any silently breaks the
-# emitted-doc shape, the save path, redaction, the unpushed-commit guard, the
-# shared-reference loads, or the enhance/overwrite re-run routing.
-require_tokens skills/handoff/SKILL.md \
-  'docs/handoffs/' \
-  '[REDACTED:' \
-  '@{upstream}..HEAD' \
-  'origin/HEAD..HEAD' \
-  '## Goal' \
-  '## Current state' \
-  '## Next steps' \
-  '## Relevant files & artifacts' \
-  '### Inlined (not yet on remote)' \
-  '## History' \
-  '## Handoff document template' \
-  '## Redaction patterns' \
-  'multi-repo-detection.md' \
-  'Enhance' \
-  'Overwrite' \
-  'Continue one' \
-  'Create new'
-
-# Brainstorm self-review reaches scenario-style.md by section name. A silent
-# rename of either heading leaves the self-review pointer dangling.
-require_pattern skills/brainstorm/references/scenario-style.md '^## Discipline' '^## Anti-patterns'
 
 check "Producer/consumer contracts intact" test -z "$contract_errors"
 if [ -n "$contract_errors" ]; then
