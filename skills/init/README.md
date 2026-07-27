@@ -60,7 +60,7 @@ Auto-installed per detected stack: Python (black + isort), Node.js (prettier), R
 
 ## Customization
 
-`.claude/docs/coding-guidelines.md` in your project is the primary control surface for what the code-simplifier agent, `/optimus:refactor`, and `/optimus:code-review` flag — every principle you add or edit changes their behavior. It is overwritten from the template on re-run, so put project-specific rules in `.claude/CLAUDE.md` (or, for skill-authoring projects, in `skill-writing-guidelines.md`, which is preserved across re-runs).
+`.claude/docs/coding-guidelines.md` is the baseline the code-simplifier agent, `/optimus:refactor`, and `/optimus:code-review` judge code against. It is regenerated from the plugin template on every re-run, so don't edit it — put rules specific to your codebase in the Gotchas section of `.claude/CLAUDE.md`, or (for skill-authoring projects) in `skill-writing-guidelines.md`. Both are preserved across re-runs.
 
 Templates live in [`templates/`](templates/) — CLAUDE.md variants, doc skeletons, and hook scripts.
 
