@@ -46,6 +46,8 @@ Redact as you write: every line of the document — authored prose as much as in
 
 Write the document to `docs/handoffs/<slug>.md`, creating the folder if missing.
 
+Then verify: read the file back from disk and re-scan the full document body against the **Redaction patterns** table (same reference-line exemption), fixing any hit before you report. Redacting as you write is a judgement made once, mid-composition, over a long document; this pass is an independent check of what actually landed, and it is the only thing standing between a missed secret and `/optimus:commit`.
+
 Report the written path. If the resolved root is not itself a git repo — a multi-repo workspace root, or a directory with no recognized structure — note the file is not under version control; suggest committing it inside a child repo or initializing version control at the root. Recommend `/optimus:commit` so the handoff reaches the remote — staying in this conversation, so the context being handed off is captured — and that the resumer point a fresh session at the written file. This skill writes only that one file (`docs/handoffs/<slug>.md`, creating the folder if missing); it never stages, commits, or pushes.
 
 ## Handoff document template

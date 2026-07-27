@@ -99,7 +99,9 @@ End every assembled prompt with the changed-file list (from Step 3, or `scope_fi
 
 ### PR/MR context injection (PR/MR mode only)
 
-If the `pr-description` body captured in Step 3 is non-empty, prepend the PR/MR Context Block from `$CLAUDE_PLUGIN_ROOT/references/context-injection-blocks.md` (template, truncation rule, guardrail language) to every agent prompt immediately before the file list. Under `HARNESS_MODE_INLINE` on iterations 2+, also prepend the Iteration Context Block from the same reference — it defines the ordering when both blocks apply. Wait for all launched agents to complete before proceeding to Step 6.
+If the `pr-description` body captured in Step 3 is non-empty, prepend the PR/MR Context Block from `$CLAUDE_PLUGIN_ROOT/references/context-injection-blocks.md` (template, truncation rule, guardrail language) to every agent prompt immediately before the file list. Under `HARNESS_MODE_INLINE` on iterations 2+, also prepend the Iteration Context Block from the same reference — it defines the ordering when both blocks apply.
+
+Wait for all launched agents to complete before proceeding to Step 6. This applies to every mode, not just the PR/MR path above: an agent still running when Step 6 starts contributes no findings to validate and none to the report, and the review prints its verdict anyway.
 
 ## Step 6: Validate Findings
 
