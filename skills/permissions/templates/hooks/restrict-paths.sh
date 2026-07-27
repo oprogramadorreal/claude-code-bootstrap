@@ -5,7 +5,7 @@
 # Source:       https://github.com/oprogramadorreal/optimus-claude
 # Docs:         skills/permissions/README.md
 # ============================================================================
-# HOOK_VERSION: 4
+# HOOK_VERSION: 5
 # ^ Bump on every behavioural change. The plugin's SessionStart hook compares
 #   this against the copy installed in a project and recommends re-running
 #   /optimus:permissions when the project's copy is older — a plugin update
@@ -208,10 +208,21 @@ is_precious() {
     *.key|*.pem|*.pfx|*.p12|*.cert|*.crt|*.jks) return 0 ;;
     # Database files
     *.sqlite|*.sqlite3|*.db|*.db-shm|*.db-wal|*.db-journal|*.mdf|*.ldf|*.ndf) return 0 ;;
-    # Database backups
-    *.bak|*.dump|*.sql.gz) return 0 ;;
-    # IDE user settings
-    *.suo|*.user) return 0 ;;
+    # Database dumps
+    *.dump|*.sql.gz) return 0 ;;
+  esac
+  is_recoverable_precious "$1"
+}
+
+# Precious, but recoverable: worth an ask before overwriting, never worth an
+# undeniable block on delete. A PreToolUse deny is delivered to the model, not
+# the user, so there is no path to "yes, delete it" — and these are exactly the
+# files a cleanup step legitimately removes (the harness writes
+# .claude/<skill>-deep-progress.json.bak on every run).
+is_recoverable_precious() {
+  local lname; lname="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$lname" in
+    *.bak|*.suo|*.user) return 0 ;;
   esac
   return 1
 }
@@ -910,8 +921,10 @@ case "$tool_name" in
           if ! is_exempt_out_of_project_n "$_nword"; then
             deny_operation "BLOCKED: Cannot delete '$word' — outside project root."
           fi
-          # Precious file protection: block deletion of sensitive unversioned files
-          if [[ -e "$word" ]] && is_inside_project_n "$_nword" && is_precious "$word" && ! is_git_tracked "$word"; then
+          # Precious file protection: block deletion of sensitive unversioned files.
+          # Recoverable ones (backups, IDE scratch) are excluded — see
+          # is_recoverable_precious: a deny here could never be overridden.
+          if [[ -e "$word" ]] && is_inside_project_n "$_nword" && is_precious "$word"              && ! is_recoverable_precious "$word" && ! is_git_tracked "$word"; then
             deny_operation "BLOCKED: '$(basename "$word")' is a precious file not tracked by git. Deletion denied."
           fi
         done

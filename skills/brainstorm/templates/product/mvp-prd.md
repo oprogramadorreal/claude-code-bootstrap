@@ -1,9 +1,6 @@
 # MVP — Product Requirements (PRD)
 
-> **Altitude & precedence.** This document is part of a docs-first cascade, in decreasing altitude:
-> **product vision → MVP PRD → target tech-stack → active build spec**. Higher docs set long-term
-> direction; the active build spec (in `docs/specs/`) governs what to build right
-> now. When they conflict about current work, **the active build spec wins.**
+> **Altitude & precedence.** Part of a docs-first cascade — **product vision -> MVP PRD -> target tech-stack -> active build spec**. The full statement of what that means lives in [product vision](./product-context.md); the short version is that when these conflict about current work, the active build spec (in `docs/specs/`) wins.
 > Siblings: [product vision](./product-context.md) · [target tech-stack](./tech-stack.md).
 >
 > **What this document is.** The first product slice (the MVP) — narrower than the

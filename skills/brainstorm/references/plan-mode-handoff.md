@@ -13,6 +13,30 @@ Shared procedure for skills that hand a design off through Claude Code's plan mo
 - **Default — prose deliverables, or any plan NOT routed to `/optimus:tdd`:** iterate in plan mode, then **approve the plan to implement in the same conversation**. After implementation, `/optimus:commit` and `/optimus:pr` should run in that same conversation so they can capture the implementation context.
 - **Carve-out — work routed to `/optimus:tdd`:** treat plan mode as **review-only**. Approval would execute immediately and bypass TDD's Red-Green-Refactor discipline. Use the canonical blocks below.
 
+## Prompt skeleton
+
+Both the plan-mode prompt and the execution prompt use this shape. Fill each section from whatever source document the consuming skill holds (a `docs/specs/` spec, a `docs/jira/` task file), and substitute the real path so every pasted block is self-contained.
+
+````
+```
+## Goal
+[Plan-mode prompt: the goal from the source document.
+ Execution prompt: "Run /optimus:tdd to implement the refined plan in <doc-path> test-first."]
+
+## Context
+[Plan-mode prompt only: key decisions, constraints, and the rationale for the chosen approach.
+ Omit this section from the execution prompt.]
+
+## Starting Hints
+- <doc-path>  [execution prompt: note that it now carries a "Refined plan" section]
+- [Key files, modules, or components the source document names]
+
+## Scope
+- Focus on: [components or area from the source document]
+- Out of scope: [what the source document excludes]
+```
+````
+
 ## Carve-out canonical blocks
 
 Close the generated plan-mode prompt with this section, substituting `<doc-path>` with the actual spec/task file path. The `### Refined plan` heading is exact — jira's refresh and enrichment procedures preserve that section by that literal string:

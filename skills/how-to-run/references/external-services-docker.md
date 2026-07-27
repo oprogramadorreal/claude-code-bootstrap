@@ -57,7 +57,7 @@ Inputs: service name, the `Endpoint semantics` label from the detector, and Dock
 4. **Local-style endpoint label AND daemon suitability** → **Docker-preferred.** Local install stays as the alternative.
 5. **Web-search recipe fails** (including `unknown` suitability) → **Local install only.** The final gate is the Step 4 multi-select downgrade prompt (shape specified in SKILL.md); each option's failure reason is the specific validation that tripped. Kept services render the Docker alternative; unchecked services render the fallback matching their pre-failure classification — rule-4 Docker-preferred services render [Local install only](#local-install-only) (their designated alternative per rule 4, consistent with this rule's verdict), rule-3 Shared-cloud primary services render [Shared-cloud, no Docker alternative](#shared-cloud-no-docker-alternative).
 
-Rules 1–4 are evaluated at Step 3 (provisional); rule 5 finalises at Step 4 — the only per-service prompt. A user who disagrees corrects the endpoint label via Step 1 "Correct first" or picks **Skip** at Step 3.
+Rules 1–4 are evaluated at Step 3 (provisional); rule 5 finalises at Step 4, which owns the one prompt in this path.
 
 ## Web-Search Recipe
 
@@ -275,7 +275,7 @@ When the host is ARM and step 3 reports no `linux/arm64`, add `--platform linux/
 
 ## Registry Allowlist
 
-Step 4 rejects any image reference whose registry host is not listed; Step 6 re-validates against the same list:
+Step 4 rejects any image reference whose registry host is not listed:
 
 - `docker.io` (Docker Official / Verified Publisher)
 - `mcr.microsoft.com`
@@ -288,7 +288,7 @@ Bare names (`mongo:<tag>`, `redis:<tag>`) implicitly resolve to `docker.io/libra
 
 ### Host Extraction and Allowlist Match
 
-Step 4 and Step 6 MUST use this same algorithm, with an **exact-match** check — never prefix or substring:
+Use an **exact-match** check — never prefix or substring:
 
 1. No `/` in the reference → bare name; host = `docker.io`; go to step 4.
 2. Split on the first `/`. If the left part contains `.` or `:` (e.g., `mcr.microsoft.com`, `localhost:5000`) it is the registry host → step 3. Otherwise it is a Docker Hub namespace (`localstack`, `bitnami`); host = `docker.io`; go to step 4.

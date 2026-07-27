@@ -26,25 +26,10 @@ Walk the steps in document order. For each:
 
 ## Advisory flags
 
-Soft warnings prepended to the question — they never change the option set. Case-insensitive; match after collapsing whitespace to a single space.
+One soft warning sentence prepended to the question; they never change the option set. Nothing here is executed, so an unflagged command at worst means the user reads it without the extra nudge.
 
-**Destructive command** — prepend *"Destructive command — read carefully before running."* on any match of:
-
-- `\brm\s+(-[a-zA-Z]*[rRfF][a-zA-Z]*|--(recursive|force))\b`
-- `(?i)\b(DROP|TRUNCATE|DELETE\s+FROM)\b`
-- `\bgit\s+(reset\s+--hard|clean\s+-[a-zA-Z]*[fdx]|push\s+(?:\S+\s+){0,4}?(--force|-f)(?!-with-lease|-if-includes)|branch\s+-D)\b`
-- `\bdocker\s+(system\s+prune|volume\s+rm|image\s+prune|container\s+prune|network\s+prune|rmi)\b`
-- `\bkubectl\s+(delete|drain)\b`
-- `\bterraform\s+destroy\b`
-- `\baws\s+s3\s+(rm\b[^|;&\n]*--recursive|rb\b[^|;&\n]*--force|sync\b[^|;&\n]*--delete)\b`
-- `\b(Remove-Item|del\s+/[fsq]+|rd\s+/s|rmdir\s+/s)\b`
-
-**Remote code executor** — prepend *"Remote code executor — fetches and runs code from a URL. Read the URL before running."* on any match of:
-
-- `\b(curl|wget|iwr|invoke-webrequest|irm|invoke-restmethod)\b[^|]*\|\s*(sudo\s+)?(sh|bash|zsh|pwsh|powershell|iex|invoke-expression)\b`
-- `\b(sh|bash|zsh|pwsh|powershell)\s+-c\s+["']?\$\(\s*\b(curl|wget|iwr|invoke-webrequest|irm|invoke-restmethod)\b`
-
-The list is intentionally narrow and best-effort — since nothing is executed, an unflagged adversarial command at worst means the user reads it without an extra prompt.
+- **Destructive command — read carefully before running.** — anything that deletes data, drops or truncates a schema, force-pushes, hard-resets, prunes containers or volumes, or tears down infrastructure. `rm -rf`, `DROP TABLE`, `git push --force` (not `--force-with-lease`), `docker system prune`, `kubectl delete`, `terraform destroy`, `aws s3 rm --recursive`, and `Remove-Item -Recurse` are the shapes; recognise the intent, not the list.
+- **Remote code executor — fetches and runs code from a URL. Read the URL before running.** — anything that pipes a download into a shell or evaluates a fetched string: `curl … | sh`, `iwr … | iex`, `bash -c "$(curl …)"`.
 
 ## Display sanitization
 

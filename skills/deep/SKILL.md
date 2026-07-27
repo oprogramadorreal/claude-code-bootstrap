@@ -132,7 +132,7 @@ Do not narrate subagent findings in conversation prose — the final report cove
 
 ## Step 6: Final Report
 
-After the loop, follow the loop reference's "After the loop" section: `final-report --archive` prints the cumulative report and moves the progress file to `.done.json` so a stray `--resume` cannot pick up a completed run — except on a `diminishing-returns` soft-exit, which stays un-archived and resumable via `--resume`. For a fresh second-opinion pass after a clean finish, re-run `/optimus:deep <target>` without `--resume`.
+After the loop, follow the loop reference's "After the loop" section. For a fresh second-opinion pass after a clean finish, re-run `/optimus:deep <target>` without `--resume`.
 
 ## Important
 

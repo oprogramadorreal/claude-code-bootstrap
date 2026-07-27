@@ -12,7 +12,7 @@ Pick the mode from the arguments: `suggest` → Suggest mode; `branch` (optional
 
 ## Default mode — stage, commit, optionally push
 
-1. **Gather changes**: read `$CLAUDE_PLUGIN_ROOT/skills/commit/references/gather-changes.md` and follow it.
+1. **Gather changes**: `git diff --cached`, `git diff`, `git status --short` (untracked = names only), leading with `--stat` when the diffs are large. In a workspace run these inside each child repo and skip the clean ones. No local changes anywhere → say so and stop.
 
 2. **Untracked-file gate**: if `git status --short` shows untracked files (`??`):
    - List them and warn about any that look like secrets (`.env`, `*.key`, `*.pem`, `*.pfx`, `credentials.*`, `secrets.*`, `*.sqlite`, `*.db`).
@@ -51,7 +51,7 @@ Recommend `/optimus:pr` when a pull request is next — stay in this conversatio
 
 Never stages, commits, or modifies anything.
 
-1. Gather changes per `$CLAUDE_PLUGIN_ROOT/skills/commit/references/gather-changes.md`.
+1. Gather changes as in Default mode step 1.
 2. Read `$CLAUDE_PLUGIN_ROOT/skills/commit/references/conventional-commit-format.md` and generate the message(s).
 3. Present each message in a copyable code block. If changes span multiple concerns, propose separate commits, each with its message and the exact files to stage. In a workspace, put each repo's suggestion under a `## <repo-name>` heading (label even a single repo).
 
