@@ -1,5 +1,5 @@
 ---
-description: Bootstraps a project for Claude Code — detects tech stack and structure (single project, monorepo, or multi-repo workspace), generates CLAUDE.md plus progressive-disclosure docs, installs auto-format hooks and test infrastructure, and audits/syncs existing documentation against source code. Writes files under .claude/ and subproject docs/; offers official-CLI scaffolding in empty directories. Replaces /init; safe to re-run.
+description: Bootstraps a project for Claude Code — generates CLAUDE.md and scoped docs from detected structure (single project, monorepo, or multi-repo workspace), installs auto-format hooks and test infrastructure, and reconciles existing docs against the source. Writes under .claude/ and subproject docs/. Replaces /init; safe to re-run.
 disable-model-invocation: true
 ---
 
@@ -42,7 +42,7 @@ On **Scaffold**: read and execute `$CLAUDE_PLUGIN_ROOT/skills/init/references/ne
 
 ### Project detection (agent-assisted)
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/init/agents/project-analyzer.md` and launch 1 `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md` — the agent reads the detection references itself via the absolutized paths its prompt carries. When the current directory has no `.git/` directory, also append the contents of `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` — `project-detection.md` Step 0 expects that algorithm in the prompt and does not fetch it.
+Read `$CLAUDE_PLUGIN_ROOT/skills/init/agents/project-analyzer.md` and launch 1 `general-purpose` agent with that prompt, prepended with the "Agent Constraints" section of `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Assemble the prompt per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md` — the agent reads the detection references itself via the absolutized paths its prompt carries.
 
 If the agent reports the structure as **ambiguous**, resolve via `AskUserQuestion`: ask the user to confirm whether this is a monorepo and identify subproject directories.
 

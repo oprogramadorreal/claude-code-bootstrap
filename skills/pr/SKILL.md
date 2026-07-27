@@ -59,7 +59,7 @@ Classify into one of three states before generating content:
 2. **Existing PR body has `## Intent`** (Update Flow only — see the detection rule in the template).
 3. **None** — when uncertain, prefer this state over fabricating. Ask (AskUserQuestion "Intent capture"): **Add intent now** → have the user reply with Problem / Scope / Non-goals / Key decisions on separate lines in a plain message (blank lines skip a sub-field); **Skip** → omit the section entirely, no stub.
 
-Suppress the state-3 prompt in states 1 and 2. **Never infer Intent from commit messages or the diff alone** — a fabricated Intent creates false `Intent Mismatch` findings in `/optimus:code-review`.
+Suppress the state-3 prompt in states 1 and 2.
 
 ### Generate content
 

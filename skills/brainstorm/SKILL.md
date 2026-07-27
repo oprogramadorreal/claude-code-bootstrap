@@ -100,7 +100,7 @@ Write to `docs/specs/YYYY-MM-DD-<topic-slug>.md` (lowercase hyphenated slug from
 - <Deferred decisions — remove if none>
 ```
 
-Self-review the written file for: TODOs or placeholders; internal contradictions; ambiguity that could lead to building the wrong thing; YAGNI violations; scenario discipline (against scenario-style.md's Discipline and Anti-patterns) when Scenarios are present. Fix what you find, but ask the user before any fix that changes a design decision.
+The spec ships with no TODOs or placeholders. If closing a gap would change a design decision the user approved, ask before changing it.
 
 ## Step 6: Report
 

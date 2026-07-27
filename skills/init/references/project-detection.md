@@ -6,7 +6,7 @@ Detection algorithm for identifying monorepo and multi-repo workspace structures
 
 If `.git/` exists in the current directory, skip to Step A — the common case.
 
-Otherwise apply the **Multi-Repo Workspace Detection** algorithm, which the dispatcher includes in your prompt whenever the current directory has no `.git/`. On a confirmed workspace, run Steps A/B/C inside each enumerated repo to classify it as single project or monorepo. (Canonical source: `multi-repo-detection.md`, shared with every other skill that needs it — there is no second copy to keep in sync.)
+Otherwise apply the **Multi-Repo Workspace Detection** algorithm from `multi-repo-detection.md`, which your prompt's reference list points you at for exactly this case. On a confirmed workspace, run Steps A/B/C inside each enumerated repo to classify it as single project or monorepo. (Canonical source: `multi-repo-detection.md`, shared with every other skill that needs it — there is no second copy to keep in sync.)
 
 **Manifest validity (applies to all steps):** A lock file without its corresponding manifest (e.g., `package-lock.json` without `package.json`) does not count as a valid manifest.
 

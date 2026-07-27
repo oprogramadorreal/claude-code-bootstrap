@@ -14,11 +14,9 @@ When the skill is reviewing a PR/MR and a `pr-description` was captured during s
 **Description:**
 [captured PR/MR body, truncated to first 2000 characters if longer — append "(truncated)" if truncated]
 
-Use this to understand the author's stated intent behind the changes. However:
-- Still flag genuine bugs, security issues, and guideline violations even if the description says the change is intentional
-- The description explains "why" but does not excuse "how" — incorrect implementations of a correct intent are still findings
-- Do NOT reduce confidence or skip findings just because the description mentions them
-- If the description has a populated `## Intent` section (problem, scope, non-goals, key decisions) AND your agent's addendum defines the `Intent Mismatch` category, check whether the diff delivers each claim — a claim with no supporting code change, or a change contradicting a stated non-goal, is an `Intent Mismatch` finding. Agents without that addendum skip this check. If there is no populated `## Intent` section, skip the check; never invent intent from the Summary, commit messages, or diff.
+This is the author's stated intent, not ground truth. It explains "why" and never excuses "how": a description calling a change intentional does not retire a bug, a security issue, or a guideline violation, and does not lower a finding's confidence.
+
+If it carries a populated `## Intent` section and your prompt defines the `Intent Mismatch` category, run that check as your addendum specifies.
 ```
 
 If the PR/MR has no description (empty body), omit this block entirely — do not inject an empty context section.

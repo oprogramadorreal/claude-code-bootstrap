@@ -17,7 +17,7 @@ If the current directory has no `.git/` directory, read `$CLAUDE_PLUGIN_ROOT/ski
 
 If `.claude/CLAUDE.md` or `.claude/docs/coding-guidelines.md` is missing, recommend `/optimus:init` first. On the user's choice to continue, fall back to the bundled baseline: read `$CLAUDE_PLUGIN_ROOT/skills/init/templates/docs/coding-guidelines.md` and work against it plus general best practices, and note in the report that findings are generic, not project-specific.
 
-**Focus:** a standalone unquoted `testability` or `guidelines` token (case-insensitive) in the arguments sets the focus and is consumed from the scope text; keywords inside quoted strings stay scope text (`"improve testability in auth"` → focus=null). If both keywords appear, use the first and warn that separate passes cover each. Everything remaining is natural-language scope.
+**Focus:** a bare `testability` or `guidelines` argument sets the focus and is consumed from the scope text — a keyword inside a quoted string is scope, not focus (`"improve testability in auth"` → no focus). If both appear, take the first and say the other needs its own pass. Everything remaining is natural-language scope.
 
 **Scope:** if the arguments describe a scope, map it to directory paths by scanning the project structure — no question needed. Otherwise use `AskUserQuestion` (header "Scope"):
 
@@ -72,9 +72,9 @@ Read `$CLAUDE_PLUGIN_ROOT/references/finding-validation.md` and apply it to ever
 
 Keep **High**-confidence findings, keep **Medium** with a note, drop what your own check could not confirm — and report how many you dropped, so filtered recall stays visible. An agent's **Low** label describes its evidence, not yours: promote it if your check confirms the issue.
 
-**Deduplicate and resolve:** same file/line-range/category from two agents → keep the more detailed version; an Agent 1 + Agent 3 overlap → merge and note "confirmed by independent review". Contradictory findings on the same region (opposite directions) → higher severity wins; tie → active focus wins; no focus → testability wins.
+**Deduplicate and resolve:** same file/line-range/category from two agents → keep the more detailed version; an Agent 1 + Agent 3 overlap → merge and note "confirmed by independent review". When two agents contradict each other on the same region, decide on the evidence in the code and say which you kept and why.
 
-**Cap:** at most **15 findings**, each a distinct root cause — never pad. With an active focus, reserve 12 slots for the focused category and 3 for the rest, prioritizing by severity then confidence within each group; unused slots flow to the other group. Category mapping: `testability` → Testability Barrier findings plus any finding with a Testability impact line; `guidelines` → every other category. Without focus, rank by severity then confidence across all categories. If more issues exist, disclose it ("15 of ~24 detected") and suggest a narrower scope or `/optimus:deep refactor`.
+**Cap:** at most **15 findings**, each a distinct root cause — never pad. With an active focus, rank that category first and let only high-severity findings from the others take the remaining slots; without a focus, rank by severity then confidence across all categories. If more issues exist, disclose it ("15 of ~24 detected") and suggest a narrower scope or `/optimus:deep refactor`.
 
 ### Output format
 

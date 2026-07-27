@@ -31,7 +31,7 @@ Locate the test runner command (from `testing.md`, `CLAUDE.md`, or project manif
 - **Tests fail** — stop and report; a failing baseline makes Red/Green indistinguishable
 - **No runner found** — stop and recommend `/optimus:init` to set up test infrastructure (its Scaffold option covers projects with no code yet)
 
-Then detect the coverage command per `$CLAUDE_PLUGIN_ROOT/skills/tdd/references/coverage-detection.md`. If found, run it once and record the `Before` percentage; Step 8 runs only the `After` measurement. If none, Step 8 omits its Coverage section.
+Then find a coverage command — first match wins: the coverage section of `testing.md`, a runner flag (`vitest --coverage`, `pytest --cov=.`, `go test -cover`, `dotnet test --collect:"XPlat Code Coverage"`), or a `package.json` coverage script. If found, run it once and record the `Before` percentage; Step 8 runs only the `After` measurement.
 
 ## Step 2: Task and Suitability
 
@@ -114,27 +114,27 @@ If the test passes at step 3 with the fix reverted, it isn't catching the bug: r
 
 ### Lint / type-check
 
-If a lint or type-check command is configured (`CLAUDE.md` or project manifest), run it — type errors can hide behind passing tests. Fix failures before proceeding. Run it again after Refactor.
+If a lint or type-check command is configured (`CLAUDE.md` or project manifest), run it — type errors can hide behind passing tests. Fix failures before proceeding.
 
 ## Step 6: Refactor — Clean Up While Green
 
 Review this cycle's test and implementation against `coding-guidelines.md`. Scope: code written in this session plus the files it directly imports, calls, or inherits from — extract duplication with those files, align naming, adjust an existing method to cleanly serve old and new usage. Do not restructure beyond that scope, add features, or handle untested edge cases. Also check the test: behavior-spec name, focused assertions, `testing.md` conventions.
 
-Run the test suite after every refactoring change — all tests must stay green; undo any change that breaks one.
+Run the test suite when the cycle's cleanup is done; if it goes red, undo the change that broke it.
 
 ## Step 7: Commit and Loop
 
 Auto-commit each completed cycle:
 
 1. Stage the cycle's files specifically (`git add <files>`; `git add -A` only when many files changed). Never stage files that look like secrets (`.env`, credentials, keys) — warn the user if any appear in `git status`.
-2. Commit with a conventional message per `$CLAUDE_PLUGIN_ROOT/skills/commit/references/conventional-commit-format.md`; report the short hash and message.
+2. Commit with a conventional message per `$CLAUDE_PLUGIN_ROOT/skills/commit/references/conventional-commit-format.md`.
 
 Then keep cycling — return to Step 4 for the next behavior without asking. Two things interrupt the loop:
 
 - **Milestone boundary** — the completed behavior ends the current milestone and more remain: `AskUserQuestion` — header "Milestone complete", options **Next milestone** (present its behaviors for approval as in Step 3, then return to Step 4) / **Stop here**.
 - **The decomposition turns out to be wrong** — a behavior that was really several, or one the implementation showed was misframed. Say what changed and confirm the revised list before continuing. (Step 5's circuit breaker covers the narrower case of a test that will not pass.)
 
-Report at those boundaries rather than per cycle: which behaviors landed, with their test names. If no behaviors remain, or the user stops, proceed to Step 8.
+Report at those boundaries rather than per cycle: which behaviors landed, their test names, and the commit hashes. If no behaviors remain, or the user stops, proceed to Step 8.
 
 ## Step 8: Summary, Push, and PR/MR
 
@@ -159,9 +159,9 @@ If uncommitted changes exist (e.g., stopped mid-cycle), run the test suite first
 - Files created / modified: [lists]
 
 ### Coverage
-[Run the After measurement with the Step 1 coverage command. Include this section only when
-both Before and After produced a real percentage — the "When to omit" rule in
-`$CLAUDE_PLUGIN_ROOT/skills/tdd/references/coverage-detection.md`.]
+[Run the After measurement with the Step 1 coverage command. Include this section only when both
+Before and After produced a real percentage — never a half-filled block. Omit it entirely when no
+coverage command was found or either run produced no parseable number.]
 - Before: [X]%
 - After: [Y]%
 - Delta: +[Z]%

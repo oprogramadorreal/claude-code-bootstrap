@@ -70,11 +70,11 @@ You then choose: **Apply all**, **Selective** (pick by number), or **Skip**.
 
 ## Relationship to the Code-Simplifier Agent
 
-The plugin's code-simplifier agent guards new code after every edit; `/optimus:refactor` is the on-demand complement for restructuring existing code:
+The plugin's code-simplifier agent cleans up code you have just changed; `/optimus:refactor` is the on-demand complement for restructuring existing code:
 
 | | Code-simplifier agent | `/optimus:refactor` |
 |---|---|---|
-| Trigger | Automatic, after every edit | On-demand, user-invoked |
+| Trigger | Invoked on request, on recently modified code | On-demand, user-invoked |
 | Scope | Recently modified code | Full project, directory, or changed files |
 | Focus | Per-file clarity | Cross-file patterns + testability barriers |
 | Action | Applies safe changes directly | Plan first, apply on approval |

@@ -9,12 +9,12 @@ Remove files installed by `/optimus:init` and `/optimus:permissions`. Does NOT u
 
 ## Safety Rules
 
-These rules are absolute and override all other instructions:
+Two boundaries the steps below cannot express, and that override anything else this skill does:
 
-- **NEVER** touch test files, test directories, or test configuration — even if created by `/optimus:unit-test`
-- **NEVER** touch files outside `.claude/`, subproject `CLAUDE.md`, subproject `docs/`, and workspace-root `CLAUDE.md`
-- **NEVER** delete a user-modified file without the user's explicit approval, and **NEVER** delete `.claude/settings.json` outright — surgically remove optimus entries, preserving user content (Step 4)
-- **ALWAYS** classify every file first, present the categorized list, and get confirmation via AskUserQuestion before removing anything
+- **NEVER** touch test files, test directories, or test configuration — even if `/optimus:unit-test` created them
+- **NEVER** touch anything outside `.claude/`, subproject `CLAUDE.md`, subproject `docs/`, and workspace-root `CLAUDE.md`
+
+`.claude/settings.json` is never deleted outright — Step 4 removes optimus entries surgically and keeps user content.
 
 ## Step 1 — Detect and inventory
 
