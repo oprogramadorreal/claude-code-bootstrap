@@ -126,7 +126,7 @@ Read the target's loop reference — `$CLAUDE_PLUGIN_ROOT/references/orchestrato
 
 Refactor target: when a focus is set, add `Focus: <testability|guidelines>` to the dispatch prompt after the `Phase:` line (the base skill reads `config.focus` from the progress file; the echo makes the intent visible in the run trace).
 
-Coverage target: the paired loop's blocked gate (a non-null `blocked` field from the unit-test phase) exits the loop instead of dispatching further cycles — report the reason with matching recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline).
+Coverage target: the paired loop's blocked gate (a non-null `blocked` field from the unit-test phase) exits the loop instead of dispatching further cycles — record it with `mark-termination --reason blocked` as the loop reference specifies, then report the reason with matching recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline). The run stays resumable: tell the user to re-run with `--resume` once the prerequisite is fixed.
 
 Do not narrate subagent findings in conversation prose — the final report covers them.
 
