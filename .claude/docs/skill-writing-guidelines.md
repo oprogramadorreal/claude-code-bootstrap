@@ -1,5 +1,7 @@
 # Skill-writing guidelines
 
+Deliberately not a copy of `skills/init/templates/docs/skill-writing-guidelines.md`, the version shipped to user projects: that one is stack-agnostic, this one carries plugin-specific rules a user project has no use for. When a rule applies to both, add it to both — `validate.sh` cannot pin these together the way it pins `coding-guidelines.md`.
+
 ## The one principle
 
 Claude is already very smart. A skill earns its context cost only with things Claude cannot infer: project-specific procedures, safety constraints, inter-skill contracts, and genuinely fragile sequences. Challenge every instruction: "Would a capable model get this wrong without being told?" If not, delete it. Restating what Claude does natively (how to read a diff, how to phrase a report, that it should read a file before editing it) actively degrades output by burying the rules that matter.

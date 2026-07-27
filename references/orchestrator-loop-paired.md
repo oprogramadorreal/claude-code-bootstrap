@@ -9,7 +9,7 @@ Iteration template for `/optimus:deep coverage`. Each **cycle** runs a unit-test
 
 The loop control discipline mirrors `references/orchestrator-loop-single.md` (snapshot before dispatch, slice-only progress reads, subagent output is text not state, don't end a turn on a promise, report only what the CLI confirmed) — see that reference for the rationale. Only the cycle structure differs.
 
-**Plugin root.** As stated in `orchestrator-loop-single.md`: `$CLAUDE_PLUGIN_ROOT` below means the root the orchestrator resolved in its Step 2; Bash-tool environment variables do **not** persist across Bash calls, so if `echo $CLAUDE_PLUGIN_ROOT` reads empty, substitute the resolved absolute path **literally** into every `PYTHONPATH=...` command and into both dispatch prompts in this file.
+**Plugin root.** As in `orchestrator-loop-single.md`: substitute the root the orchestrator resolved in its Step 2 into every command and both dispatch prompts below.
 
 ## Per-cycle body
 
@@ -40,11 +40,10 @@ Agent tool call:
     `<absolute-plugin-root>/references/coverage-harness-mode.md` ("Unit-Test
     Phase Execution" section) exactly. Wherever the base SKILL.md or that
     reference mentions `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin
-    root above — your environment may not export it:
-    - Read the progress file above for prior coverage and untestable items.
-    - Discover gaps, write new tests, measure coverage, flag untestable code.
-    - Emit a single ```json:harness-output fenced block and stop.
-    - Do not use AskUserQuestion. Do not loop.
+    root above — your environment may not export it.
+
+    Do NOT run the full test suite or any `scripts/*.sh` wrapper: the
+    orchestrator owns that run. Coverage measurement is part of the phase.
 ```
 
 ### 3. Save the subagent return + extract JSON
@@ -128,10 +127,9 @@ Agent tool call:
     `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin root above — your
     environment may not export it. The progress file lists pending untestable
     items under untestable_code; scope the refactor to those files only.
-    Apply fixes. Do NOT run the test command, any `scripts/*.sh`, or any
-    lint/build — the orchestrator owns all test execution. Emit a single
-    ```json:harness-output fenced block and stop.
-    Do not use AskUserQuestion. Do not loop.
+
+    Do NOT run the test command, any `scripts/*.sh`, or any lint/build step:
+    the orchestrator owns all test execution and bisection.
 ```
 
 ### 7. Save the refactor return + extract the refactor JSON

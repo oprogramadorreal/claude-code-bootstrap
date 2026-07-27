@@ -19,7 +19,7 @@ Analyze local git changes (or a PR/MR) against the project's coding guidelines w
 
 ## Step 2: Inline Harness Mode Detection
 
-If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow its single-iteration execution protocol — it covers progress-file reading, scope and file-list rules, agent-prompt overrides, and the apply/output protocol. Proceed through Steps 3–7, skip Step 8 (the orchestrator handles approval upfront), apply the fixes mechanically, emit the structured JSON per the harness-mode output protocol — `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract it must satisfy — and stop. Do not use `AskUserQuestion`. Do not loop.
+If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow it — that reference governs which of the steps below run, how scope and agent prompts are overridden, and how this run ends.
 
 If `HARNESS_MODE_INLINE` is NOT present, continue with the standard interactive flow below.
 
@@ -93,7 +93,7 @@ When you do fan out, launch every applicable agent as a `general-purpose` Agent 
 
 Agents 1–5 always run. Agent 6 runs when test infrastructure is detected (`.claude/docs/testing.md` or a subproject `docs/testing.md` exists). Agent 7 runs when any changed file matches a contract pattern — directory patterns: `api/`, `routes/`, `controllers/`, `endpoints/`, `handlers/`, `graphql/`, `proto/`, `grpc/`; file patterns: `*.dto.*`, `*.schema.*`, `*.contract.*`, `openapi.*`, `swagger.*`, `*.proto`, `*.graphql`, `*.gql`. No match → skip Agent 7 entirely.
 
-**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace `guideline-reviewer.md`'s "Dynamic Prompt Construction" section with the concrete doc-reading instructions for this project's layout from Step 4 — that section addresses the dispatcher, not the agent.
+**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace the `<!-- dispatcher: ... -->` line in `guideline-reviewer.md` with the concrete doc paths resolved in Step 4 for this project's layout.
 
 End every assembled prompt with the changed-file list (from Step 3, or `scope_files.current` in harness mode when pre-populated) followed by the diff hunks — at minimum the changed line ranges per file when the diff is too large to inline. Agents have no sanctioned way to compute the diff themselves; never send file paths alone. Findings are bounded by the Finding Cap in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`.
 
@@ -118,7 +118,7 @@ If a `pr-description` was captured, use it as an additional soft signal: an expl
 - **Dedupe**: same file + line range + category → keep the more detailed version. When two agents reached it independently, merge into one and note "confirmed by independent review".
 - **Contradictions**: findings on the same code region recommending opposite directions (e.g., "add validation" vs. "simplify this validation") → keep the higher severity; on ties, keep the security/correctness finding — security requirements justify proportionate complexity.
 - **Severity**: **Critical** — bugs, security vulnerabilities, runtime failures, Intent Mismatch contradicting a stated non-goal. **Warning** — guideline violations, missing error handling, coverage gaps on critical paths, backward-incompatible contract changes, Intent Mismatch on unsupported scope claims. **Suggestion** — quality improvements, minor drift, Intent Mismatch on partial matches.
-- **Finding cap**: max **15 domain findings** in the report, prioritized by severity then confidence. `Intent Mismatch` findings surface on top of the 15 — up to 5, deduplicated across agents, sorted by severity, presented after the domain findings (the per-agent budget is registered in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` "Finding Cap"). If more issues exist, note the count and suggest a narrower scope or `/optimus:deep review`.
+- **Finding cap**: max **15 domain findings** in the report, prioritized by severity then confidence. `Intent Mismatch` findings surface on top of the 15 — up to 5, deduplicated across agents, sorted by severity, presented after the domain findings. If more issues exist, note the count and suggest a narrower scope or `/optimus:deep review`.
 
 Open with a **Change Summary** — 2–4 factual sentences on what the changes accomplish — so the user can verify the review understood them.
 

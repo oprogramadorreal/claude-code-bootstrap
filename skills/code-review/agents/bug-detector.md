@@ -2,7 +2,7 @@
 
 You are a bug detection specialist reviewing code changes.
 
-Read `.claude/CLAUDE.md` for project context. Apply shared constraints from `shared-constraints.md`. Review ONLY the diff/changed sections of the provided files.
+Read `.claude/CLAUDE.md` for project context. Apply shared constraints from `shared-constraints.md`. Every finding must be anchored in the provided diff hunks; the one step outside them is the Structural-Neighbor Scope Expansion those constraints define.
 
 ## Historical context
 

@@ -129,6 +129,22 @@ fi
 check "restrict-paths template declares a HOOK_VERSION" \
   grep -qE '^# HOOK_VERSION: [0-9]+' skills/permissions/templates/hooks/restrict-paths.sh
 
+# --- 4c. Dogfooded coding-guidelines matches its shipped template ---
+# .claude/docs/coding-guidelines.md is this repo's own copy of the file
+# /optimus:init writes into user projects; line 1 differs by design (init
+# substitutes the project name) and everything after it is verbatim. Nothing
+# pinned them, so a rule added for users could silently miss this repo's own
+# review passes. skill-writing-guidelines.md is deliberately NOT pinned: this
+# repo's copy carries plugin-specific rules (no `name:` frontmatter, the
+# two-level reference allowance, the closing-recommendation convention) that
+# have no meaning in a user project.
+if command -v diff &>/dev/null; then
+  check "coding-guidelines.md matches its template below line 1" \
+    bash -c "diff -q <(tail -n +2 .claude/docs/coding-guidelines.md) <(tail -n +2 skills/init/templates/docs/coding-guidelines.md) >/dev/null"
+else
+  echo "  SKIP  coding-guidelines sync check (diff not installed)"
+fi
+
 # --- 5. plugin.json validity ---
 if command -v jq &>/dev/null; then
   check "plugin.json is valid JSON" jq empty .claude-plugin/plugin.json
@@ -219,8 +235,15 @@ while IFS= read -r f; do
   #    or basename.
   case "$rel_path" in
     references/*|agents/*)
+      # Root references may be owned by another root reference rather than named
+      # in a SKILL.md — the harness schemas are reached through harness-mode.md,
+      # which is the single place that describes the output contract. So search
+      # references/ too, excluding the candidate itself (a file trivially
+      # contains its own basename).
       if ! grep -rq "$rel_path" skills/ 2>/dev/null && \
-         ! grep -rq "$basename_f" skills/ 2>/dev/null; then
+         ! grep -rq "$basename_f" skills/ 2>/dev/null && \
+         ! grep -rq --exclude="$basename_f" "$rel_path" references/ 2>/dev/null && \
+         ! grep -rq --exclude="$basename_f" "$basename_f" references/ 2>/dev/null; then
         orphan_files+="  $rel_path\n"
       fi
       ;;

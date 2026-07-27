@@ -41,7 +41,7 @@ If `HARNESS_MODE_INLINE` is not present, continue with the interactive flow belo
 
 ## Step 3: Load project context and map analysis areas
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md` and load the docs it lists, applying its skill-authoring lens (markdown instruction files are judged by skill-writing-guidelines.md, code by coding-guidelines.md — never cross-contaminate), its monorepo scoping rule, and its submodule exclusion. These docs define the rules: every suggestion must be justified by what they establish — never impose external preferences.
+Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md` and load the docs it lists, applying its skill-authoring lens, its monorepo scoping rule, and its submodule exclusion. These docs define the rules: every suggestion must be justified by what they establish — never impose external preferences.
 
 Within the scope, identify source directories. Skip non-source directories (dependencies, build output, framework caches, dot-directories), minified/lock/binary files, and the generated source files listed under "All Agents Exclude" in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Group areas by top-level source directory (monorepo: by subproject, then directory) and rank by recent churn:
 

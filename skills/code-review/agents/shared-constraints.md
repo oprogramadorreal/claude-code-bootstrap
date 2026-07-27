@@ -47,19 +47,8 @@ When a PR/MR Context Block is present in your prompt **and** the description inc
 
 **Skip silently** when: there is no populated `## Intent` section — **never invent intent** from the Summary, commit messages, or diff; the claim is ambiguous or aspirational (e.g., "improve performance" with no metric) — omit rather than flag; or the claim is already satisfied elsewhere in the codebase — verify with Grep/Read before flagging.
 
-**Budget:** Intent Mismatch findings do not count against the 15-finding cap — up to **+5 per agent per pass** (canonical rule: `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` "Finding Cap").
+**Budget:** Intent Mismatch findings do not count against the base 15-finding cap — up to **+5 per agent per pass**. This is the composing category the base Finding Cap allows for.
 
 **Fix the code, never the PR description.** A suggested fix MUST edit code (or tests, or config — anything that ships in the diff) to deliver the stated intent. Never propose updating the PR description to match the code — that silently rewrites the author's stated intent and defeats the check, and the harness auto-applies emitted fixes, so a description fix would destroy the intent record. If you are confident the intent itself is wrong, write in `Suggested:` that *"the author should reconsider the stated intent"* instead.
 
-## Agent lanes
-
-Each agent reports Intent Mismatch findings only within its own domain:
-
-| Agent | Lane (claims about…) |
-|-------|----------------------|
-| bug-detector | behavior/correctness — "validates input", "handles null", "no behavior change" |
-| security-reviewer | security — "rotated tokens on logout", "requires admin role", boundary validation, abuse prevention |
-| guideline-reviewer | patterns/conventions — "follows repository pattern", "uses standard error shape", architectural boundaries |
-| test-guardian | test coverage — "tests for the new flow", "covers edge case X", test non-goals |
-| contracts-reviewer | API/contracts — "preserves backwards compat", "no public API change", versioning/deprecation |
-| code-simplifier | *does not run the check* |
+**Lane.** Report Intent Mismatch findings only for claims inside the lane your own prompt names, and leave claims outside it to the agent that owns them. An agent whose prompt names no lane does not run this check.

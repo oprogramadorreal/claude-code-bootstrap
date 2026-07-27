@@ -12,7 +12,7 @@ Improve unit test coverage for existing code. Conservative by design — only ad
 
 ### Inline harness mode detection
 
-If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep coverage` orchestrator as a single cycle (unit-test phase). Read `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md` and follow its "Unit-Test Phase Execution" section: skip user confirmation, run Steps 2–4 exactly once, then output structured JSON via Step 6 and stop. Do not use `AskUserQuestion`. Do not loop.
+If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are a single cycle (unit-test phase) inside the `/optimus:deep coverage` orchestrator. Read `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md` and follow its "Unit-Test Phase Execution" section — that section governs which of the steps below run and how this run ends.
 
 ### Prerequisites and project docs
 
@@ -52,7 +52,7 @@ Create a prioritized list, **capped at 10 items per run**: exported/public funct
 
 **Skip** (flag in the summary, don't attempt): code untestable without refactoring, generated code, migration files, declarative configuration, thin wrappers with no logic.
 
-Present the plan, then use `AskUserQuestion` — header "Plan", question "How would you like to proceed with the test generation plan?": **Approve all** (generate tests for all planned items) / **Selective** (ask which item numbers to proceed with) / **Skip** (no tests — keep the plan as reference). Harness mode: skip the question, auto-approve all items — the orchestrator decides whether to iterate after Step 6.
+Present the plan, then use `AskUserQuestion` — header "Plan", question "How would you like to proceed with the test generation plan?": **Approve all** (generate tests for all planned items) / **Selective** (ask which item numbers to proceed with) / **Skip** (no tests — keep the plan as reference).
 
 ## Step 4: Test Writing
 
@@ -104,4 +104,4 @@ If untestable code was flagged, recommend `/optimus:refactor testability` in a f
 
 ## Step 6: Harness Output (harness mode only)
 
-If running under `HARNESS_MODE_INLINE`, output structured JSON **instead** of the Step 5 summary — `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md` "Output structured JSON" shows the shape in context, and `$CLAUDE_PLUGIN_ROOT/references/schemas/coverage-harness-output.schema.json` is the contract it must satisfy. Emit the fenced block, then stop — do not loop, do not present recommendations, do not use `AskUserQuestion`.
+If running under `HARNESS_MODE_INLINE`, emit the structured JSON **instead** of the Step 5 summary, per the "Output structured JSON" section of `$CLAUDE_PLUGIN_ROOT/references/coverage-harness-mode.md`.

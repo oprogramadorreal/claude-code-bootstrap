@@ -8,7 +8,7 @@
 
 Shared iteration template for `/optimus:deep review` and `/optimus:deep refactor`. The orchestrator dispatches its base skill into a fresh subagent context per iteration, parses the structured JSON the base skill emits, and uses the harness CLI to manage state, test/bisect, and decide termination. All state lives in the progress file — the orchestrator never holds findings or fixes in conversation prose; it reads the CLI's stdout to make decisions.
 
-**Plugin root.** Every command below writes `$CLAUDE_PLUGIN_ROOT` to mean the plugin root the orchestrator skill resolved in its Step 2. Bash-tool environment variables do **not** persist across separate Bash calls and may read empty on some platforms (notably Windows); if `echo $CLAUDE_PLUGIN_ROOT` was empty there, substitute the resolved absolute path **literally** into every `PYTHONPATH=...` command and into every dispatch prompt in this file.
+**Plugin root.** `$CLAUDE_PLUGIN_ROOT` below means the root the orchestrator resolved in its Step 2 — substitute that absolute path literally into every command and dispatch prompt here, because Bash-tool environment variables do not persist across calls and read empty on some platforms.
 
 ## Per-iteration body
 
@@ -43,16 +43,13 @@ Agent tool call:
     `<absolute-plugin-root>/references/harness-mode.md` exactly. Wherever the
     base SKILL.md, harness-mode.md, or the agent prompt files they load
     reference `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin root
-    above — your environment may not export it:
-    - Read the progress file above for accumulated findings and scope.
-    - Run the analysis cycle once.
-    - Apply fixes. Do NOT run the test command, any `scripts/*.sh`, or any
-      lint/build — the orchestrator owns all test execution and bisection.
-    - Emit a single ```json:harness-output fenced block and stop.
-    - Do not use AskUserQuestion. Do not loop.
+    above — your environment may not export it.
+
+    Do NOT run the test command, any `scripts/*.sh`, or any lint/build step:
+    the orchestrator owns all test execution and bisection.
 ```
 
-Where `<base-skill>` is `code-review` or `refactor`, and `<absolute-plugin-root>` is the root resolved in Step 2 (the subagent does not inherit `$CLAUDE_PLUGIN_ROOT`, so it must be passed as an absolute path — and the subagent must substitute it onward into the fan-out agent prompts it composes, per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`). The subagent inherits the working tree and applies edits via `Edit`/`MultiEdit`; on return, the working tree carries the iteration's changes and the subagent's final message contains the structured JSON.
+`<base-skill>` is `code-review` or `refactor`. The subagent inherits the working tree and applies edits via `Edit`/`MultiEdit`; on return, the working tree carries the iteration's changes and its final message contains the structured JSON. It must substitute the absolute root onward into the fan-out agent prompts it composes, per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`.
 
 ### 3. Save the subagent return to a temp file
 
