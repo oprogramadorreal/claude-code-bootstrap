@@ -53,15 +53,32 @@ fi
 # keep running a hook that predates a security fix with nothing to say so. The
 # HOOK_VERSION line in each copy makes that drift visible. Silent unless the
 # project actually has the hook installed and the plugin's copy is newer.
-hook_version() { # $1=file -> integer; a copy with no marker predates versioning
-  local v
-  v="$(sed -n 's/^# HOOK_VERSION:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -1)" || v=""
+# Result in a global, and read with the shell rather than sed. This runs TWICE
+# on every session start, and the version marker sits in the first few lines —
+# but `v="$(sed ... | head -1)"` scanned all 1400+ of them behind three forks
+# (subshell + sed + head) per call. On Windows, where a fork is expensive and
+# nothing else on this path pays for one, those six forks were most of the
+# hook's runtime. A bounded read costs none of them.
+_hook_version=0
+read_hook_version() { # $1=file -> sets _hook_version; no marker means pre-versioning
+  local v="" line n=0
+  while [ "$n" -lt 12 ] && IFS= read -r line; do
+    n=$((n + 1))
+    case "$line" in
+      '# HOOK_VERSION:'*)
+        v="${line#*:}"
+        v="${v#"${v%%[![:space:]]*}"}"   # trim the space after the colon
+        v="${v%%[![:digit:]]*}"          # keep the leading digit run only
+        break
+        ;;
+    esac
+  done < "$1" 2>/dev/null || v=""
   # Strip leading zeros: `[ 010 -gt 8 ]` evaluates 010 as OCTAL. No extglob needed.
   while [ "${#v}" -gt 1 ] && [ "${v#0}" != "$v" ]; do v="${v#0}"; done
   # Clamp absurd values: `[ -gt ]` writes "integer expected" to stderr on every
   # session start for anything past int64, and the check would silently do nothing.
   [ "${#v}" -gt 9 ] && v="999999999"
-  printf '%s' "${v:-0}"
+  _hook_version="${v:-0}"
 }
 
 # CLAUDE_PLUGIN_ROOT cannot be the gate here: it reads empty on some platforms
@@ -71,15 +88,21 @@ hook_version() { # $1=file -> integer; a copy with no marker predates versioning
 # the env var stays as an override for an installation that relocates it.
 plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
 if [ -z "$plugin_root" ]; then
-  hook_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || hook_dir=""
-  [ -n "$hook_dir" ] && plugin_root="$(dirname -- "$hook_dir")"
+  # Pure parameter expansion, not `cd "$(dirname ...)" && pwd` + `dirname`:
+  # plugin_root is only ever used to OPEN the file below, so it does not have to
+  # be canonical — '<dir>/hooks/..' opens exactly what the resolved path would.
+  # A relative BASH_SOURCE resolves against the same CWD either way.
+  case "${BASH_SOURCE[0]}" in
+    */*) plugin_root="${BASH_SOURCE[0]%/*}/.." ;;
+    *)   plugin_root=".." ;;
+  esac
 fi
 
 installed_hook=".claude/hooks/restrict-paths.sh"
 template_hook="$plugin_root/skills/permissions/templates/hooks/restrict-paths.sh"
 if [ -f "$installed_hook" ] && [ -f "$template_hook" ]; then
-  have="$(hook_version "$installed_hook")"
-  want="$(hook_version "$template_hook")"
+  read_hook_version "$installed_hook"; have="$_hook_version"
+  read_hook_version "$template_hook"; want="$_hook_version"
   if [ "$want" -gt "$have" ]; then
     output+="[optimus] The path-restriction hook installed in this project (\`.claude/hooks/restrict-paths.sh\`, v$have) is older than the plugin's (v$want) and may be missing security fixes. Suggest re-running \`/optimus:permissions\` to update it."$'\n'
   fi

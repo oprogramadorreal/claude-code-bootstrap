@@ -74,7 +74,7 @@ Experiment: [Request variants or alternatives to explore]
 
 ## Template E — Chain of Thought
 
-*Logic-heavy tasks, math, debugging, multi-factor analysis. Gated by SKILL.md hard rule 3: check the target tool's tool-routing.md entry first — never for reasoning-native models or tools that calibrate reasoning automatically (use that entry's nudge wording instead). Not for simple or creative tasks.*
+*Logic-heavy tasks, math, debugging, multi-factor analysis. Gated by SKILL.md's Chain of Thought technique rule: check the target tool's tool-routing.md entry first — never for reasoning-native models or tools that calibrate reasoning automatically (use that entry's nudge wording instead). Not for simple or creative tasks.*
 
 ```
 [Task statement]
@@ -333,7 +333,7 @@ The plan should include:
 
 ## Template N — Dynamic Workflow Orchestration
 
-*For Claude Code dynamic workflows — produces a single NATURAL-LANGUAGE PROMPT the user pastes into an active Claude Code session to launch a workflow of REAL parallel subagents (exempt from hard rule 2 — the passes are real, not simulated). NEVER author a .js workflow script, and do NOT prescribe the workflow's phases or agent counts — describe the task, outcome, and constraints; Claude Code designs the orchestration and writes the script.*
+*For Claude Code dynamic workflows — produces a single NATURAL-LANGUAGE PROMPT the user pastes into an active Claude Code session to launch a workflow of REAL parallel subagents (exempt from Invariant 1 — the passes are real, not simulated). NEVER author a .js workflow script, and do NOT prescribe the workflow's phases or agent counts — describe the task, outcome, and constraints; Claude Code designs the orchestration and writes the script.*
 
 - Express orchestration as **intent**, in natural language — open with "Run a workflow to…" (the scaffold below does). The prompt must clearly ask for a workflow of parallel agents, not a turn-by-turn task
 - Describe the task, the quality bar (e.g. "cross-check findings before reporting"), and the required output. A pattern-type hint (fan-out / pipeline / cross-agent corroboration) is optional preference, never a prescribed phase plan with agent counts

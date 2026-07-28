@@ -1,12 +1,12 @@
 ---
-description: Refactors code toward two goals — project-guideline compliance and testability (so /optimus:unit-test can safely increase coverage) — using 4 parallel analysis agents. Supports "testability" or "guidelines" focus plus flexible scoping. Read-only until the user approves the plan; applied changes stay local for review. Use after /optimus:init, before /optimus:unit-test, or periodically; for an iterative loop use /optimus:deep refactor.
+description: Refactors code toward two goals — project-guideline compliance and testability (so /optimus:unit-test can safely increase coverage) — across four analysis lenses, fanned out to parallel agents when the scope warrants it. Supports "testability" or "guidelines" focus plus flexible scoping. Read-only until the user approves the plan; applied changes stay local for review. Use after /optimus:init, before /optimus:unit-test, or periodically; for an iterative loop use /optimus:deep refactor.
 disable-model-invocation: true
 argument-hint: "[testability|guidelines] [scope]"
 ---
 
 # Project-Wide Code Refactoring
 
-Analyze existing source code against the project's own guidelines using 4 parallel agents, present a prioritized refactoring plan, then apply only user-approved changes with test verification. Two goals:
+Analyze existing source code against the project's own guidelines across four lenses — inline for a small scope, fanned out to parallel agents otherwise — present a prioritized refactoring plan, then apply only user-approved changes with test verification. Two goals:
 
 1. **Guideline compliance** — align code with coding-guidelines.md, architecture.md, styling.md, and testing.md
 2. **Testability** — restructure code so `/optimus:unit-test` can safely increase coverage without risky refactoring

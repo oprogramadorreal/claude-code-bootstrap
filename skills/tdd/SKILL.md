@@ -120,7 +120,7 @@ If a lint or type-check command is configured (`CLAUDE.md` or project manifest),
 
 Review this cycle's test and implementation against `coding-guidelines.md`. Scope: code written in this session plus the files it directly imports, calls, or inherits from — extract duplication with those files, align naming, adjust an existing method to cleanly serve old and new usage. Do not restructure beyond that scope, add features, or handle untested edge cases. Also check the test: behavior-spec name, focused assertions, `testing.md` conventions.
 
-Run the test suite when the cycle's cleanup is done; if it goes red, undo the change that broke it.
+Run the test suite when the cycle's cleanup is done; if it goes red, undo the change that broke it. Re-run the Step 5 lint / type-check as well — it last ran *before* this cleanup edited the code, and Step 7 commits without checking again.
 
 ## Step 7: Commit and Loop
 

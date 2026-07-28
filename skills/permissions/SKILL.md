@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 Configure permission rules and a path-restriction hook so Claude Code agents can work autonomously inside the project without constant prompts, while destructive operations outside it stay gated.
 
-Security model in brief: the installed hook prompts on writes and blocks deletes outside the project (Claude's memory store and session scratchpad are exempt), asks before editing and blocks deleting precious unversioned files, and blocks history-modifying git operations on protected branches. Inside the project, operations not on the deny list run without prompts.
+Security model in brief: the installed hook prompts on writes and blocks deletes outside the project (Claude's memory store and session scratchpad are exempt), asks before editing any precious unversioned file and blocks deleting the unrecoverable ones (a backup or IDE scratch file only asks), and blocks history-modifying git operations on protected branches. Inside the project, operations not on the deny list run without prompts.
 
 ## Step 1: Detect existing configuration
 
@@ -40,7 +40,7 @@ Fix any issue before reporting:
 
 1. `.claude/hooks/restrict-paths.sh` is an exact copy of the template — `diff` against it and run `bash -n` on the installed copy. The only acceptable differences are customizations the user chose to re-apply in Step 2; on any other mismatch, re-copy the template (a mangled hook fails open at runtime).
 2. `.claude/settings.json` has a PreToolUse entry that resolves to the installed `restrict-paths.sh` — a merge that drops or misspells it leaves the project unprotected with no other symptom.
-3. Scan for precious unversioned files: derive the patterns from the `is_precious()` function in the just-installed hook (the single source of truth — never hardcode the list) and run `find . -maxdepth 4` with one `-name` clause per pattern, excluding `.git/`, `node_modules/`, `obj/`, and `bin/`. Report untracked matches as protected. If the scan finds sensitive-looking unversioned files no pattern matches, offer to add custom patterns to `is_precious()` in the installed hook — a re-run detects and offers to re-apply such edits, but permanent patterns belong in the plugin-source template.
+3. Scan for precious unversioned files: derive the patterns from the `is_precious()` function in the just-installed hook (the single source of truth — never hardcode the list) and run `find . -maxdepth 4` with one `-name` clause per pattern, excluding `.git/`, `node_modules/`, `obj/`, and `bin/`. Report untracked matches as protected, marking any that match only `is_recoverable_precious_name()` (backups, IDE scratch) as edit-prompt only — those stay deliberately deletable. If the scan finds sensitive-looking unversioned files no pattern matches, offer to add custom patterns to `is_precious()` in the installed hook — a re-run detects and offers to re-apply such edits, but permanent patterns belong in the plugin-source template.
 
 Report: files created or updated (fresh install vs update), allow/deny counts, detected MCP servers, and the one-line security summary from the top of this skill. Point to this skill's README for the trust model, the auto-mode layering, and the not-OS-sandboxing caveat.
 

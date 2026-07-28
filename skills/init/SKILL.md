@@ -152,7 +152,7 @@ Cross-check README.md (root, and each subproject's in monorepos), CONTRIBUTING.m
 Two gates before reporting, both against state this skill did not author on its own:
 
 - **Hooks match their source** — each template-based hook in `.claude/hooks/` is byte-identical to its template (`diff` them); custom hooks from the unsupported-stack fallback follow the shell-hook pattern and that reference's validation rules.
-- **settings.json survived the merge** — `hooks.PostToolUse` lists exactly the hooks present in `.claude/hooks/`, in both directions, and every pre-existing section is intact. This file was merged into user state, so a dropped entry silently disables a hook with no other symptom.
+- **settings.json survived the merge** — every format hook *this skill* installed has a matching `hooks.PostToolUse` entry, and every `PostToolUse` entry resolves to a file that exists in `.claude/hooks/`. Hooks owned by another skill are out of scope: `/optimus:permissions` installs `restrict-paths.sh` into that same directory and registers it under **PreToolUse**, so comparing the directory listing against `PostToolUse` "in both directions" reads it as a missing entry — and "fixing" that breaks it. Every pre-existing section must also be intact: this file was merged into user state, so a dropped entry silently disables a hook with no other symptom.
 
 Then sweep the files you wrote for surviving `[placeholder]` text and unresolved template HTML comments — each file's line-1 identity comment is the only `<!--` allowed to remain. Fix any failure before reporting.
 

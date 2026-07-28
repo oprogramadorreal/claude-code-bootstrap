@@ -5,7 +5,7 @@
 # Source:       https://github.com/oprogramadorreal/optimus-claude
 # Docs:         skills/permissions/README.md
 # ============================================================================
-# HOOK_VERSION: 7
+# HOOK_VERSION: 8
 # ^ Bump on every behavioural change. The plugin's SessionStart hook compares
 #   this against the copy installed in a project and recommends re-running
 #   /optimus:permissions when the project's copy is older — a plugin update
@@ -136,18 +136,22 @@
 #   Bash-side guards (delete protection, git branch protection) work on it in
 #   four stages, each of which exists because skipping it turned the guard off
 #   for an ordinary spelling rather than an exotic one:
-#     1. Split on the shell's command operators — '&&', '||', ';', '|', '&' and
-#        newline — then peel any leading keyword ('do ', 'then ', '{ ') the split
-#        left at the front of a fragment.
+#     1. Join backslash-newline line continuations (a continuation is one
+#        command, not two), then split on the shell's command operators — '&&',
+#        '||', ';', '|', '&' and newline — then peel any leading keyword ('do ',
+#        'then ', '{ ') the split left at the front of a fragment. A subshell's
+#        parens are counted, not just stripped, so a `cd` inside one does not
+#        outlive it.
 #     2. shell_split() each fragment into words, honouring quotes and escapes and
 #        expanding '~' and every SET $VAR, so a gate compares the path the shell
 #        will act on rather than the characters as typed. A name this hook cannot
 #        see (a caller's shell variable is not exported) stays literal — see
 #        expand_word.
 #     3. cmd_word_index() locates the fragment's command word THROUGH a wrapper
-#        prefix (sudo, command, env VAR=val, xargs and its flags, /bin/rm, \rm),
-#        and stops at the first token that is a real command — so an argument
-#        that merely reads 'rm' is never mistaken for one.
+#        prefix (sudo, command, env VAR=val, xargs and its flags — including a
+#        flag's separate-word value, as in `sudo -u root` — /bin/rm, \rm), and
+#        stops at the first token that is a real command, so an argument that
+#        merely reads 'rm' is never mistaken for one.
 #     4. `sh -c <string>`, `bash -c <string>` and `eval` carry a whole command
 #        inside a single ARGUMENT, which stage 3 can never reach. unwrap_shell_c()
 #        pulls the string out and feeds it back through stage 1, depth-bounded.
@@ -232,6 +236,17 @@ is_git_tracked() {
 _basename=""
 basename_of() {
   local p="$1"
+  # Both separators end a segment on Windows. Claude Code spells file_path as
+  # 'C:\Users\me\proj\.env', which holds no '/' at all — so splitting on '/'
+  # alone left the WHOLE path as the basename, and no prefix or exact pattern
+  # ('.env*', 'credentials.*', 'local.settings.json', 'appsettings.*.json') can
+  # match that. Precious-file protection was silently off for every
+  # backslash-spelled path, on both the edit ask and the delete block; only the
+  # suffix-anchored patterns ('*.key', '*.pem', '*.sqlite') still matched, by
+  # accident. Platform-gated because a backslash is a legal FILENAME character
+  # elsewhere: on Linux 'a\b' is one file, and splitting it would drop the
+  # protection this restores.
+  case "${OSTYPE:-}" in msys*|cygwin*) p="${p//\\//}" ;; esac
   while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
   _basename="${p##*/}"
 }
@@ -251,6 +266,24 @@ is_precious() {
   local lname="$_basename"
   is_precious_name "$lname" && return 0
   is_recoverable_precious_name "$lname"
+}
+
+# What the DELETE gate tests: the hard list, and nothing else.
+#
+# Deliberately NOT `is_precious && ! is_recoverable_precious`. is_precious is
+# itself (hard || recoverable), so that expression expands to
+# (hard || recoverable) && !recoverable — and any name on BOTH lists
+# short-circuits to unprotected. '.env.suo', '.env.<x>.user', 'credentials.suo'
+# and 'secrets.user' each match a hard pattern ('.env*', 'credentials.*',
+# 'secrets.*') AND a recoverable one ('*.suo', '*.user'), so every one of them
+# became silently deletable — the exact opposite of the intent.
+#
+# A stem re-test inside is_recoverable_precious_name cannot fix it either:
+# 'credentials.suo' matches 'credentials.*' as a WHOLE name, not through a stem,
+# so there is nothing to strip. Hard-precious has to win at the gate.
+is_hard_precious() {
+  precious_basename "$1"
+  is_precious_name "$_basename"
 }
 
 # Strip ONE trailing backup or rotation suffix from a name. Result in _stripped;
@@ -688,6 +721,15 @@ guard_out_of_project_write() {
 # exotic one. Same story for '~/x' and '$HOME/x'.
 _words=()
 shell_split() {
+  # Byte semantics for the character walk below, like json_escape pins for its
+  # bracket range. In a UTF-8 locale bash decodes ${s:i:1} as a CHARACTER, which
+  # re-scans from the front of the string on every index — the walk is
+  # superlinear, and past ~2 KB it costs more than the `sed` split it replaced
+  # (about a second slower on a 16 KB one-liner). The loop only ever compares
+  # against ASCII delimiters and reassembles the pieces in order, and a UTF-8
+  # continuation byte can never equal one of those, so byte-wise walking yields
+  # identical words.
+  local LC_ALL=C
   # Two statements on purpose: bash expands a whole `local` line BEFORE binding
   # any of its names, so `local s="$1" n=${#s}` reads the OUTER s and sets n=0 —
   # the loop below then never runs and every fragment splits to nothing.
@@ -773,29 +815,59 @@ expand_word() {
       done
       literal="\$$name"
     fi
-    # Only a plain identifier that is actually SET in this hook's environment is
-    # resolved. '$(...)', '$1', '${x:-y}' and the like stay literal — reading
-    # them needs an eval this hook will not run, and a word the hook leaves
-    # literal is still checked, just as written.
+    # Only a plain identifier the CALLER's shell would also see is resolved.
+    # '$(...)', '$1', '${x:-y}' and the like stay literal — reading them needs an
+    # eval this hook will not run, and a word the hook leaves literal is still
+    # checked, just as written.
     #
-    # The set-test is load-bearing. A shell variable assigned in the CALLER
-    # (`BUILD_DIR=build && rm -rf $BUILD_DIR/x`) is not exported, so the hook
-    # never sees it — substituting "" collapsed the word to '/x', which every
-    # gate then read as an absolute path outside the project and HARD DENIED.
+    # The lookup is load-bearing in both directions. A shell variable assigned in
+    # the caller (`BUILD_DIR=build && rm -rf $BUILD_DIR/x`) is not exported, so
+    # the hook never sees it — substituting "" collapsed the word to '/x', which
+    # every gate read as an absolute path outside the project and HARD DENIED.
     # A deny goes to the model with no prompt and no override, so ordinary
-    # build-dir cleanup became impossible. Leaving the word literal instead
-    # matches the file's fail-open rule (see header: FAIL-OPEN DESIGN): a name
-    # this hook cannot resolve is a path it cannot judge. Exported and
-    # environment variables — $HOME above all — are still expanded, so
-    # `rm $HOME/.ssh/id_rsa` stays blocked.
-    if [[ "$name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${!name+set}" ]]; then
-      out+="${!name}"
+    # build-dir cleanup became impossible. Leaving the word literal matches the
+    # file's fail-open rule (see header: FAIL-OPEN DESIGN): a name this hook
+    # cannot resolve is a path it cannot judge. Exported and environment
+    # variables — $HOME above all — are still expanded, so `rm $HOME/.ssh/id_rsa`
+    # stays blocked.
+    if lookup_env_value "$name"; then
+      out+="$_env_value"
     else
       out+="$literal"
     fi
     w="$rest"
   done
   _expanded="$out$w"
+}
+
+# The caller's view of a $VAR, from a snapshot of the environment (see the
+# populate step in the Bash branch at the bottom of this file).
+#
+# What this replaces: `-n "${!name+set}"` followed by `${!name}`. An indirect
+# expansion resolves against the WHOLE shell namespace — this hook's own globals
+# and, because bash scopes `local` dynamically, the locals of every function on
+# the stack. expand_word's own `out`/`rest`/`ch` and shell_split's `q`/`cur`/`n`
+# were all in scope, so a user command that merely mentioned one of those names
+# was judged against the HOOK's value: `out=dist && rm -rf $out/assets` denied
+# '/assets', `q=queue && rm -rf $q/tmp` denied '/tmp'. Unappealable, on commands
+# that never named a path outside the project. Names the hook cannot see are
+# exactly the ones that must stay literal, and only the environment is genuinely
+# shared with the caller's shell.
+#
+# Parallel indexed arrays rather than one associative array: bash 3.2 (stock
+# macOS) has no `declare -A`, and this must not quietly stop expanding $HOME
+# there. A linear scan of ~100 names per '$' is nothing next to the forks the
+# gates below already pay.
+_env_keys=()
+_env_vals=()
+_env_value=""
+lookup_env_value() {
+  local i=0
+  while (( i < ${#_env_keys[@]} )); do
+    if [[ "${_env_keys[i]}" == "$1" ]]; then _env_value="${_env_vals[i]}"; return 0; fi
+    (( ++i ))
+  done
+  return 1
 }
 
 # Locate the command word of an already-split fragment: sets _cmd_idx to the
@@ -823,16 +895,47 @@ _cmd_idx=-1
 cmd_word_index() {
   local names="$1"; shift
   local -a t=("$@")
-  local i tok base
+  local i tok base flag valflags="" skip=""
   for ((i=0; i<${#t[@]}; i++)); do
     tok="${t[i]#\\}"
     base="${tok##*/}"
+    # The previous token was a wrapper option that takes its value as a SEPARATE
+    # word, so this token is that value and not a command. Consuming it is what
+    # the walk was missing: it ended ON the value and reported "runs some other
+    # command", which turned BOTH Bash guards off. `sudo rm <outside>` was denied
+    # while `sudo -u root rm <outside>` was allowed — and the same one word
+    # unguarded `sudo -u root git push origin master`.
+    if [[ -n "$skip" ]]; then skip=""; continue; fi
     case "|$names|" in
       *"|$base|"*) _cmd_idx=$i; return 0 ;;
     esac
     case "$tok" in
-      sudo|doas|command|builtin|exec|env|nohup|nice|ionice|stdbuf|time|timeout|xargs) ;;
-      -*|*=*|'{}'|'%'|[0-9]*) ;;
+      # Wrappers, each with the options that swallow the following word. Listing
+      # them per wrapper rather than skipping any bare word after a flag keeps
+      # `sudo -u root somecmd rm` from reading as a delete: 'somecmd' still ends
+      # the walk.
+      sudo|doas) valflags="u|user|g|group|h|host|p|prompt|r|role|t|type|C|close-from|U|other-user|D|chdir|R|chroot" ;;
+      env) valflags="u|unset|C|chdir|S|split-string" ;;
+      timeout) valflags="s|signal|k|kill-after" ;;
+      nice) valflags="n|adjustment" ;;
+      ionice) valflags="c|class|n|classdata|p|pid|P|pgid|u|uid" ;;
+      stdbuf) valflags="i|input|o|output|e|error" ;;
+      xargs) valflags="n|max-args|L|max-lines|I|replace|i|a|arg-file|d|delimiter|E|eof|P|max-procs|s|max-chars" ;;
+      command|builtin|exec|nohup|time) valflags="" ;;
+      -*)
+        # An '=' carries the value in the same word, so nothing follows it. The
+        # emptiness guards matter: '--' strips to "", which would otherwise match
+        # the empty valflags of a no-option wrapper and swallow the command word.
+        if [[ "$tok" != *=* ]]; then
+          flag="${tok#-}"; flag="${flag#-}"
+          if [[ -n "$flag" && -n "$valflags" ]]; then
+            case "|$valflags|" in *"|$flag|"*) skip=1 ;; esac
+          fi
+        fi
+        ;;
+      # A VAR=val assignment, and the placeholder / count tokens of an xargs or
+      # find invocation — none of them is a command word.
+      *=*|'{}'|'%'|[0-9]*) ;;
       *) return 1 ;;
     esac
   done
@@ -874,7 +977,7 @@ unwrap_shell_c() {
   local -a t=("$@")
   cmd_word_index 'sh|bash|dash|ksh|zsh|eval' "${t[@]}" || return 1
   local base="${t[_cmd_idx]#\\}"; base="${base##*/}"
-  local i _oldifs
+  local i _oldifs flags
   if [[ "$base" == eval ]]; then
     # `eval a b c` joins its words with a space and runs the result.
     (( ${#t[@]} > _cmd_idx + 1 )) || return 1
@@ -883,13 +986,36 @@ unwrap_shell_c() {
     return 0
   fi
   # A shell's command string is the argument after -c, which may be bundled with
-  # other short flags ('sh -ec', 'bash -lc').
+  # other short flags ('sh -ec', 'bash -lc', 'sh -cx').
+  #
+  # The bundle has to be tested for the LETTER. `-*c` — matching any flag that
+  # merely ends in 'c' — claimed '--norc': it handed back the following token,
+  # the literal '-c', as the payload and returned success, so the caller
+  # re-scanned the string "-c" and skipped both guards for the real command.
+  # `bash --norc -c "rm -rf <outside>"` was allowed while the plain `sh -c`
+  # spelling was denied, and 'sh -cx' was missed from the other side: its 'c' is
+  # in the bundle but not last.
   for ((i=_cmd_idx + 1; i<${#t[@]}; i++)); do
     case "${t[i]}" in
-      -*c) _unwrapped="${t[i+1]:-}"; [[ -n "$_unwrapped" ]] && return 0; return 1 ;;
-      -*) ;;
-      # A non-flag argument is a SCRIPT PATH ('bash scripts/build.sh'), not a
-      # command string — nothing to unwrap.
+      # The two long options taking a separate-word value. Left unhandled, the
+      # value read as a script path and ended the walk, so `bash --rcfile f -c
+      # "<cmd>"` unwrapped nothing at all.
+      --rcfile|--init-file) (( ++i )) ;;
+      # Every other long option is a switch, and none of them is '-c'.
+      --*) ;;
+      -?*)
+        flags="${t[i]#-}"
+        if [[ "$flags" == *c* ]]; then
+          _unwrapped="${t[i+1]:-}"
+          [[ -n "$_unwrapped" ]] && return 0
+          return 1
+        fi
+        # '-o <shopt>' takes a separate-word value, like the long options above.
+        if [[ "$flags" == *o ]]; then (( ++i )); fi
+        ;;
+      # A bare '-' reads the script from stdin, and any other non-flag argument
+      # is a SCRIPT PATH ('bash scripts/build.sh') — neither carries a command
+      # string to unwrap.
       *) return 1 ;;
     esac
   done
@@ -1037,8 +1163,8 @@ check_git_command() {
   (( ${#tokens[@]} > _cmd_idx + 1 )) && _args=("${tokens[@]:$((_cmd_idx + 1))}")
   tokens=(git ${_args[@]+"${_args[@]}"})
 
-  # Rejoin for the two whole-string checks further down ('--hard', the branch
-  # delete flags). IFS is restored immediately: the callees below run `read`.
+  # Rejoin for the '--hard' whole-string check further down. IFS is restored
+  # immediately: the callees below run `read`.
   local git_portion _oldifs="$IFS"
   IFS=' '; git_portion="${tokens[*]}"; IFS="$_oldifs"
 
@@ -1168,26 +1294,62 @@ check_git_command() {
       #            --delete, --force-delete
       #   rewrite: -f/--force (force-create over an existing name), -m/-M/--move
       #            (rename onto one)
-      local branch_op=""
-      if [[ "$git_portion" =~ \ -[a-zA-Z]*[dD][a-zA-Z]*(\ |$)|\ --delete(\ |$)|\ --force-delete(\ |$) ]]; then
+      # Read the options from the tokens AFTER the subcommand, splitting short
+      # bundles from long names. Regexing the rejoined command instead made the
+      # three tests below near-duplicate patterns that then drifted apart: 'c'/'C'
+      # were simply missing from the rewrite one, so `git branch -C feature
+      # master` overwrote master and was allowed. It also let git's own global
+      # options leak in — the '-c' of `git -c user.name=x branch feature` belongs
+      # to git, not to branch.
+      local bi btok bshort="" blong="|"
+      local -a bnames=()
+      for ((bi=git_subcmd_idx+1; bi<${#tokens[@]}; bi++)); do
+        btok="${tokens[bi]}"
+        case "$btok" in
+          --*) btok="${btok%%=*}"; blong+="${btok#--}|" ;;
+          -?*) bshort+="${btok#-}" ;;
+          # Everything else is a branch name. `git branch -d` accepts several,
+          # and a rename's OLD name matters as much as its new one.
+          *) bnames+=("$btok") ;;
+        esac
+      done
+      local branch_op="" is_move="" is_copy=""
+      if [[ "$bshort" == *[dD]* || "$blong" == *"|delete|"* || "$blong" == *"|force-delete|"* ]]; then
         branch_op=delete
-      elif [[ "$git_portion" =~ \ -[a-zA-Z]*[fmM][a-zA-Z]*(\ |$)|\ --force(\ |$)|\ --move(\ |$) ]]; then
+      elif [[ "$bshort" == *[fmMcC]* || "$blong" == *"|force|"* \
+              || "$blong" == *"|move|"* || "$blong" == *"|copy|"* ]]; then
         branch_op=rewrite
       fi
       [[ -n "$branch_op" ]] || return 0
-      # Check ALL non-flag arguments (git branch -d accepts multiple branch
-      # names, and a rename's OLD name matters as much as its new one).
-      local bi
-      local -a bnames=()
-      for ((bi=git_subcmd_idx+1; bi<${#tokens[@]}; bi++)); do
-        [[ "${tokens[bi]}" == -* ]] && continue
-        bnames+=("${tokens[bi]}")
-      done
-      # `git branch -f <name> <start-point>` writes only <name>; the start-point
-      # is READ. Without this, creating an ordinary feature branch off master
-      # ('git branch -f feature master') would be denied.
-      if [[ "$branch_op" == rewrite && ! "$git_portion" =~ \ -[a-zA-Z]*[mM][a-zA-Z]*(\ |$)|\ --move(\ |$) ]]; then
-        (( ${#bnames[@]} > 1 )) && bnames=("${bnames[0]}")
+      if [[ "$bshort" == *[mM]* || "$blong" == *"|move|"* ]]; then is_move=1; fi
+      if [[ "$bshort" == *[cC]* || "$blong" == *"|copy|"* ]]; then is_copy=1; fi
+      # Which of the branch names does the command WRITE?
+      #   -m/-M/--move   rename: the old name is destroyed and the new one
+      #                  overwritten, so BOTH matter — and with a single argument
+      #                  the name it destroys is the CHECKED-OUT branch, which
+      #                  never appears on the command line at all. Every sibling
+      #                  arm resolves the current branch; this one did not, so on
+      #                  master `git branch -m archived` renamed master out of
+      #                  existence and was allowed.
+      #   -c/-C/--copy   copy: only the DESTINATION (last) is written; the source
+      #                  is read.
+      #   -f/--force     force-create: only the NAME (first) is written; the
+      #                  start-point after it is read. Without that, creating an
+      #                  ordinary feature branch off master ('git branch -f
+      #                  feature master') would be denied.
+      if [[ "$branch_op" == rewrite ]]; then
+        if [[ -n "$is_move" ]]; then
+          if (( ${#bnames[@]} == 1 )); then
+            current_branch="$(get_current_branch "$git_repo_dir")"
+            if [[ -n "$current_branch" && "$current_branch" != "HEAD" ]]; then
+              bnames+=("$current_branch")
+            fi
+          fi
+        elif [[ -n "$is_copy" ]]; then
+          (( ${#bnames[@]} > 1 )) && bnames=("${bnames[${#bnames[@]}-1]}")
+        else
+          (( ${#bnames[@]} > 1 )) && bnames=("${bnames[0]}")
+        fi
       fi
       local bname
       for bname in ${bnames[@]+"${bnames[@]}"}; do
@@ -1236,10 +1398,36 @@ check_git_command() {
 # `sh -c`, exactly as it does for the shell.
 _cd_dir=""
 _scan_depth=0
+
+# Restore the `cd` that was in force before a subshell which has now CLOSED.
+# Reads the paren bookkeeping declared local in scan_command_string, the way
+# check_git_push reads git_repo_dir — so a nested `sh -c` scan pushes and pops
+# its own parens instead of unwinding its caller's.
+cd_pop_closed() {
+  while (( _cd_pending_close > 0 )); do
+    _cd_pending_close=$(( _cd_pending_close - 1 ))
+    (( _cd_depth > 0 )) || continue
+    _cd_depth=$(( _cd_depth - 1 ))
+    _cd_dir="${_cd_stack[_cd_depth]}"
+  done
+}
+
 scan_command_string() {
   local _split="$1"
-  local _subcmd _cd_tok word target nword skip_next
+  local _subcmd _cd_tok _cd_target word target nword skip_next
   local -a _frag
+  local -a _cd_stack=()
+  local _cd_depth=0 _cd_pending_close=0
+
+  # A backslash-newline is a LINE CONTINUATION, not a command separator: the
+  # shell joins the two lines and runs ONE command. Splitting on the newline
+  # first chopped
+  #     rm -rf \
+  #     <outside>
+  # into a flagless `rm` and a bare path — the first has no argument the gate
+  # looks at, the second has no command word — so neither half tripped the
+  # delete gate while the shell went ahead and deleted. Join before splitting.
+  _split="${_split//\\$'\n'/}"
 
   # Pure bash, and '&' is one of the operators. The `sed 's/&&/\n/g; ...'` this
   # replaces emitted no newline for a LONE '&', so `true & rm <outside>` stayed
@@ -1254,9 +1442,32 @@ scan_command_string() {
   _split="${_split//&/$'\n'}"
 
   while IFS= read -r _subcmd; do
+    # Apply any subshell close seen on the PREVIOUS fragment. Deferred by one
+    # fragment on purpose: the ')' arrives glued to the subshell's own last
+    # command, which still has to be judged against the cd that was in force
+    # inside it.
+    cd_pop_closed
     _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"  # trim leading whitespace
-    _subcmd="${_subcmd#\(}"                              # strip leading subshell paren
-    _subcmd="${_subcmd%\)}"                              # strip trailing subshell paren
+    # Trailing whitespace too, and after each ')' below: the operator split
+    # leaves a space in front of the next fragment, so ' ./deploy.sh) ' ends in a
+    # SPACE and the close would go uncounted.
+    _subcmd="${_subcmd%"${_subcmd##*[![:space:]]}"}"
+    # Count the subshell parens rather than only stripping them — the count is
+    # what scopes a `cd` to its subshell. Without it the cd in
+    # `(cd /tmp && ./deploy.sh) && rm -rf build` stayed in force for the rest of
+    # the chain, and an ordinary in-project cleanup resolved to /tmp/build and
+    # was hard-DENIED.
+    while [[ "$_subcmd" == '('* ]]; do
+      _subcmd="${_subcmd#\(}"
+      _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"
+      _cd_stack[_cd_depth]="$_cd_dir"
+      _cd_depth=$(( _cd_depth + 1 ))
+    done
+    while [[ "$_subcmd" == *')' ]]; do
+      _subcmd="${_subcmd%\)}"
+      _subcmd="${_subcmd%"${_subcmd##*[![:space:]]}"}"
+      _cd_pending_close=$(( _cd_pending_close + 1 ))
+    done
 
     # Peel leading shell keywords. `for f in *; do rm <outside>; done` splits
     # into a fragment beginning 'do rm ...' and `if x; then rm <outside>; fi`
@@ -1280,13 +1491,35 @@ scan_command_string() {
     (( ${#_words[@]} )) || continue
     _frag=("${_words[@]}")
 
-    # Track 'cd <dir>' to resolve context for subsequent commands
-    if [[ "${_frag[0]}" == cd ]]; then
-      for _cd_tok in "${_frag[@]:1}"; do
-        [[ "$_cd_tok" == -* ]] && continue
-        _cd_dir="$_cd_tok"
+    # Track 'cd <dir>' to resolve context for subsequent commands — through a
+    # wrapper prefix, like every other command word here. Matching a bare first
+    # token was the only spelling recognized, so `builtin cd /etc && rm passwd`
+    # judged 'passwd' as an in-project path while the shell removed /etc/passwd.
+    if cmd_word_index 'cd|pushd|popd' "${_frag[@]}"; then
+      _cd_target=""
+      for _cd_tok in "${_frag[@]:$((_cmd_idx + 1))}"; do
+        case "$_cd_tok" in -*|'') continue ;; esac
+        _cd_target="$_cd_tok"
         break
       done
+      if [[ "${_frag[_cmd_idx]##*/}" == popd || -z "$_cd_target" ]]; then
+        # A move this hook cannot resolve: `popd`, `cd -`, a bare `cd`. Forget
+        # the tracked directory rather than leaving a STALE one in force —
+        # `cd /tmp && cd - && rm -rf build` kept /tmp and hard-DENIED an ordinary
+        # in-project cleanup. Empty means "resolve against the project root",
+        # this file's fail-open default.
+        _cd_dir=""
+      elif is_absolute_path "$_cd_target"; then
+        _cd_dir="$_cd_target"
+      else
+        # COMPOSE, never replace. Replacing re-based every later relative target
+        # on the LAST cd alone, so a chain that walked back out
+        # (`cd frontend && npm run build && cd .. && rm -rf frontend/dist`) left
+        # '..' as the base and resolved the delete outside the project — an
+        # unappealable deny on an ordinary cleanup. normalize() collapses the
+        # dot segments when the target is finally built.
+        _cd_dir="${_cd_dir:+$_cd_dir/}$_cd_target"
+      fi
       continue
     fi
 
@@ -1346,16 +1579,18 @@ scan_command_string() {
           deny_operation "BLOCKED: Cannot delete '$word' — outside project root."
         fi
         # Precious file protection: block deletion of sensitive unversioned files.
-        # Recoverable ones (backups, IDE scratch) are excluded — see
-        # is_recoverable_precious: a deny here could never be overridden.
+        # Recoverable ones (backups, IDE scratch) are excluded by is_hard_precious
+        # testing the hard list alone — a deny here could never be overridden.
         if [[ -e "$target" ]] && is_inside_project_n "$nword" \
-           && is_precious "$target" && ! is_recoverable_precious "$target" \
-           && ! is_git_tracked "$target"; then
+           && is_hard_precious "$target" && ! is_git_tracked "$target"; then
           deny_operation "BLOCKED: '$(basename "$word")' is a precious file not tracked by git. Deletion denied."
         fi
       done
     fi
   done <<< "$_split"
+  # A subshell that closed on the LAST fragment has no next iteration to unwind
+  # it, and _cd_dir is global — it would leak past the end of this scan.
+  cd_pop_closed
   return 0
 }
 
@@ -1405,6 +1640,28 @@ case "$tool_name" in
     cmd="${cmd//\\r/$'\r'}"
     cmd="${cmd//\\t/$'\t'}"
     cmd="${cmd//$'\001'/\\}"
+
+    # --- Environment snapshot for expand_word (see lookup_env_value) ---
+    # Taken HERE, at top level, because this is the only scope where the names in
+    # play are the environment's own: read from inside expand_word, an indirect
+    # expansion sees that function's locals and every caller's first. Taken in the
+    # Bash branch only, so the Edit/Write path — which never splits a command —
+    # keeps paying no forks at all.
+    while IFS= read -r _env_name; do
+      [[ "$_env_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || continue
+      _env_keys+=("$_env_name")
+      _env_vals+=("${!_env_name}")
+    done <<< "$(compgen -e 2>/dev/null)"
+    # A bash built without programmable completion has no `compgen`. Fall back to
+    # the names the gates actually depend on rather than expanding nothing, which
+    # would quietly unblock `rm $HOME/.ssh/id_rsa`.
+    if (( ${#_env_keys[@]} == 0 )); then
+      for _env_name in HOME USERPROFILE TMPDIR TEMP TMP CLAUDE_PROJECT_DIR; do
+        [[ -n "${!_env_name+set}" ]] || continue
+        _env_keys+=("$_env_name")
+        _env_vals+=("${!_env_name}")
+      done
+    fi
 
     # --- Git branch protection + Delete protection ---
     # Both live in scan_command_string, which splits the string on the shell's

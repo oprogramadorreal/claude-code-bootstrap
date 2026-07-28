@@ -1,6 +1,6 @@
 # optimus:refactor
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that refactors your codebase using 4 parallel analysis agents — focusing on guideline compliance and testability. It presents a prioritized refactoring plan, applies only what you approve, and keeps all changes local for your review.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that refactors your codebase across four analysis lenses — focusing on guideline compliance and testability. It presents a prioritized refactoring plan, applies only what you approve, and keeps all changes local for your review.
 
 Two primary goals:
 
@@ -9,7 +9,7 @@ Two primary goals:
 
 ## Features
 
-- **4 parallel agents** — guideline compliance, testability barriers, cross-file duplication/consistency, and code simplification analyzed simultaneously
+- **Four analysis lenses** — guideline compliance, testability barriers, cross-file duplication/consistency, and code simplification; applied inline for a handful of files, fanned out to parallel agents for a directory or wider
 - **Two-phase workflow** — plan first, then apply only the findings you approve
 - **Test verification** — runs your test suite after applying changes and reverts any change that causes failures
 - **Conservative by default** — only suggests changes justified by the project's own guidelines; falls back to general best practices without `/optimus:init`
@@ -51,7 +51,7 @@ By default all analysis categories compete equally for the 15-finding cap. A foc
 1. Verifies project docs exist (recommends `/optimus:init` or falls back to general best practices)
 2. Parses arguments for focus keyword and scope
 3. Loads constraint docs and maps source areas, prioritized by git churn
-4. Launches 4 analysis agents in parallel
+4. Applies the four analysis lenses — inline for a small scope, as parallel agents otherwise
 5. Independently validates findings (context, intent, git history) and presents a prioritized plan
 6. Applies only approved changes, runs tests, and reverts anything that breaks them
 

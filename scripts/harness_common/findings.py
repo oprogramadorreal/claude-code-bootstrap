@@ -11,7 +11,7 @@ def generate_finding_id(progress):
     return f"f-{len(progress['findings']) + 1:03d}"
 
 
-def _normalize_line(value):
+def normalize_line(value):
     """Coerce a line number so that 42 and "42" are the SAME finding.
 
     Nothing coerces types at the parse boundary — ``parse_harness_output`` only
@@ -41,7 +41,7 @@ def finding_key(item):
     """Extract the (file, line, category) key used to match findings and fixes."""
     return (
         normalize_path(item.get("file", "")),
-        _normalize_line(item.get("line")),
+        normalize_line(item.get("line")),
         item.get("category"),
     )
 

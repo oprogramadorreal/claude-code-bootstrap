@@ -3876,7 +3876,13 @@ class TestUnitTestStepStateMerge:
             encoding="utf-8",
         )
         assert (
-            _run("unit-test-step", "--progress-file", str(ppath), "--result-file", str(result))
+            _run(
+                "unit-test-step",
+                "--progress-file",
+                str(ppath),
+                "--result-file",
+                str(result),
+            )
             == 0
         )
         # Derived from before/after, not the boolean.
@@ -3904,7 +3910,13 @@ class TestUnitTestStepStateMerge:
             encoding="utf-8",
         )
         assert (
-            _run("unit-test-step", "--progress-file", str(ppath), "--result-file", str(result))
+            _run(
+                "unit-test-step",
+                "--progress-file",
+                str(ppath),
+                "--result-file",
+                str(result),
+            )
             == 0
         )
         entry = _read_progress(ppath)["coverage"]["history"][0]
@@ -4381,6 +4393,73 @@ class TestReviewFixRegressions:
         )
         data = _read_progress(ppath)
         assert data["coverage"]["history"][-1]["delta"] == 0
+
+    # --- An out-of-float-range coverage scalar must not kill the cycle ---
+    # json.loads builds an int of any size from a long enough literal, and by the
+    # time the step reaches the coverage merge it has ALREADY recorded a green
+    # test run — an uncaught OverflowError there throws that work away.
+    def test_unit_test_step_survives_huge_coverage_int(self, tmp_path, monkeypatch):
+        ppath = _seed_coverage_progress(tmp_path)
+        monkeypatch.setattr(cli, "run_tests", lambda *a, **kw: (True, "ok"))
+        result = tmp_path / "result.json"
+        result.write_text(
+            '{"coverage": {"before": 41.5, "after": ' + "9" * 400 + ', "delta": null},'
+            ' "tests_written": [], "untestable_code": [], "bugs_discovered": [],'
+            ' "no_new_tests": false, "no_untestable_code": false,'
+            ' "no_coverage_gained": false}',
+            encoding="utf-8",
+        )
+        assert (
+            _run(
+                "unit-test-step",
+                "--progress-file",
+                str(ppath),
+                "--result-file",
+                str(result),
+            )
+            == 0
+        )
+        entry = _read_progress(ppath)["coverage"]["history"][-1]
+        assert entry["before"] == 41.5
+        assert entry["after"] is None
+        assert entry["delta"] is None
+
+    # --- The untestable dedup key coerces the line, like the file path ---
+    # Nothing coerces types at the parse boundary, so a subagent reporting
+    # `"line": 42` one cycle and `"line": "42"` the next produced two keys for
+    # one item — inflating pending-refactor-count and buying a wasted refactor
+    # dispatch every cycle.
+    def test_unit_test_step_dedups_untestable_across_line_types(
+        self, tmp_path, monkeypatch
+    ):
+        ppath = _seed_coverage_progress(tmp_path)
+        monkeypatch.setattr(cli, "run_tests", lambda *a, **kw: (True, "ok"))
+        result = tmp_path / "result.json"
+        result.write_text(
+            json.dumps(
+                {
+                    "coverage": {"before": 50, "after": 50, "delta": 0},
+                    "tests_written": [],
+                    "untestable_code": [
+                        {"file": "u.py", "line": 42, "function": "h"},
+                        {"file": "u.py", "line": "42", "function": "h"},
+                    ],
+                    "bugs_discovered": [],
+                    "no_new_tests": False,
+                    "no_untestable_code": False,
+                    "no_coverage_gained": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        _run(
+            "unit-test-step",
+            "--progress-file",
+            str(ppath),
+            "--result-file",
+            str(result),
+        )
+        assert len(_read_progress(ppath)["untestable_code"]) == 1
 
     # --- A1: a non-string pre_edit_content is not promoted (would crash bisect) ---
     def test_promote_skips_non_string_pre(self, tmp_path, capsys, monkeypatch):

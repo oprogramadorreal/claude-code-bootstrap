@@ -5,7 +5,7 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that revie
 ## Features
 
 - **Local-first** — reviews uncommitted changes by default; with a clean tree it auto-routes to the open PR/MR (when HEAD is fully pushed) or the branch diff against the detected base
-- **5 to 7 parallel agents, one lens each** — bug detection, security/logic, guideline compliance, architecture and boundaries, code simplifier, plus test-guardian (when test infrastructure exists) and contracts-reviewer (when API/contract files changed)
+- **5 to 7 lenses — bug detection, security/logic, guideline compliance, architecture and boundaries, code simplifier, plus test-guardian (when test infrastructure exists) and contracts-reviewer (when API/contract files changed).** On a small diff (roughly 3 files or fewer, under 150 changed lines) they are applied inline in one pass; on a larger one they fan out to a parallel agent each
 - **Project-aware** — evaluates against your `coding-guidelines.md`, `testing.md`, `architecture.md`, `styling.md`; markdown instruction files in skill-authoring projects are judged by `skill-writing-guidelines.md` instead
 - **Intent-aware** — in PR/MR mode, agents receive the author's description (with guardrails against bias) and check `## Intent` claims against the implementation; git history protects deliberately introduced code from false positives
 - **Report-then-filter** — agents surface everything they find with an honest confidence label rather than self-censoring; a validation pass then checks each one against the actual code (context, intent, pre-existing, corroboration, runtime assumptions), drops what it cannot confirm, and reports how many it dropped. Contradictions between agents are resolved by severity

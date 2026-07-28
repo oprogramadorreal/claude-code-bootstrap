@@ -283,6 +283,28 @@ run_session_start
 assert_output_contains "Treats a missing marker as v0" "/optimus:permissions" "$output"
 cleanup_fixture
 
+echo "[session-start: marker past the version read bound]"
+# The version is read with a BOUNDED loop — the hook is 1400+ lines and the read
+# runs twice on every session start, so scanning the whole file with sed was most
+# of this hook's runtime. A marker pushed past the bound therefore reads as v0,
+# and that has to fail in the SAFE direction: suggest re-running, never go
+# silent. The fixture's 999 would out-rank the plugin if it were read at all.
+setup_fixture
+mkdir -p .claude/docs .claude/hooks
+echo "# Project"    > .claude/CLAUDE.md
+echo "# Guidelines" > .claude/docs/coding-guidelines.md
+echo "# Testing"    > .claude/docs/testing.md
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# filler\n%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+  printf '# HOOK_VERSION: 999\n'
+} > .claude/hooks/restrict-paths.sh
+git add -A && git commit -q -m setup
+run_session_start
+assert_output_contains "A marker past the read bound reads as v0, not as current" \
+  "/optimus:permissions" "$output"
+cleanup_fixture
+
 echo "[session-start: installed hook is current]"
 setup_versioned_fixture "$ss_plugin_ver"
 run_session_start
@@ -895,6 +917,12 @@ assert_decision "Push to protected branch in a loop body denied" DENY \
   "$(rp_git_decision 'for f in a; do git push origin master; done')"
 assert_decision "Quoted protected branch name denied" DENY \
   "$(rp_git_decision 'git push origin \"master\"')"
+# A backslash-newline is a line CONTINUATION, not a separator. Split on the
+# newline, the delete became a flagless `rm` (whose only argument the gate skips
+# as a flag) plus a bare path with no command word — so neither half tripped the
+# gate while the shell joined them and performed the delete.
+assert_decision "Line-continued rm outside project denied" DENY \
+  "$(rp_decision Bash command "rm -rf \\\\\\n$rp_tmp/outside/a.txt")"
 
 # Wrapper prefixes. The rm guard recognized only a bare `xargs` with valueless
 # flags, while the git guard already handled `command`/`env` — the two are now
@@ -917,6 +945,23 @@ assert_decision "timeout-wrapped rm denied" DENY \
   "$(rp_decision Bash command "timeout 5 rm $rp_tmp/outside/a.txt")"
 assert_decision "sudo-wrapped push to protected branch denied" DENY \
   "$(rp_git_decision 'sudo git push origin master')"
+# A wrapper option whose value is a SEPARATE word. The walk used to end ON the
+# value and report "runs some other command", so one such option turned both
+# guards off while the bare spelling stayed blocked. The `xargs -n 1` and
+# `-I {}` cases above passed only because a digit and '{}' have cases of their
+# own — a value that is an ordinary word had none.
+assert_decision "sudo with a valued flag still denies rm" DENY \
+  "$(rp_decision Bash command "sudo -u root rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo with a valued LONG flag still denies rm" DENY \
+  "$(rp_decision Bash command "sudo --user root rm $rp_tmp/outside/a.txt")"
+assert_decision "xargs -a <file> still denies rm" DENY \
+  "$(rp_decision Bash command "find . | xargs -a list.txt rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo with a valued flag still denies push" DENY \
+  "$(rp_git_decision 'sudo -u root git push origin master')"
+# Only the VALUE is skipped: a real command still ends the walk, or
+# `sudo -u root somecmd rm` would read as a delete it is not.
+assert_decision "a wrapper value does not swallow a real command" ALLOW \
+  "$(rp_decision Bash command "sudo -u root somecmd rm $rp_tmp/outside/a.txt")"
 # The walk must still stop at a real command: `grep` is not a wrapper, so its
 # argument can never be read as a delete target.
 assert_decision "grep for an rm pattern allowed" ALLOW \
@@ -946,6 +991,18 @@ assert_decision "echo of an sh -c string allowed" ALLOW \
   "$(rp_decision Bash command "echo sh -c \\\"rm $rp_tmp/outside/a.txt\\\"")"
 assert_decision "sh -c rm inside project allowed" ALLOW \
   "$(rp_decision Bash command "sh -c \\\"rm $rp_tmp/proj/src/a.txt\\\"")"
+# The bundle must be tested for the LETTER 'c', not for a flag that merely ENDS
+# in one: '--norc' matched, so the payload handed back was the following token —
+# the literal '-c' — and both guards were skipped for the real command.
+assert_decision "bash --norc -c rm denied" DENY \
+  "$(rp_decision Bash command "bash --norc -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+assert_decision "bash --norc -c push denied" DENY \
+  "$(rp_git_decision 'bash --norc -c \"git push origin master\"')"
+assert_decision "bash --rcfile takes a value, then -c" DENY \
+  "$(rp_decision Bash command "bash --rcfile f -c \\\"rm $rp_tmp/outside/a.txt\\\"")"
+# ...and the letter need not be LAST in the bundle.
+assert_decision "sh -cx bundled flag denied" DENY \
+  "$(rp_decision Bash command "sh -cx \\\"rm $rp_tmp/outside/a.txt\\\"")"
 
 # A redirection names a stream. Counted as a delete target it produced an
 # unappealable deny on `rm <in-project> > /dev/null`; counted as a refspec it
@@ -1005,6 +1062,42 @@ assert_decision "unset var inside a loop allowed" ALLOW \
 # the hole the literal fallback must not reopen.
 assert_decision "\$HOME still expands to a denied path" DENY \
   "$(rp_decision_cwd 'rm -rf $HOME/.ssh/id_rsa')"
+# "Can the hook see this name?" was answered with an INDIRECT expansion, which
+# resolves against the whole shell namespace — the hook's own globals and,
+# because bash scopes `local` dynamically, the locals of every function on the
+# stack. A command that merely mentioned one of those names was judged against
+# the HOOK's value and hard-denied a path the user never wrote. Only the
+# environment is genuinely shared with the caller's shell.
+assert_decision "a name shadowing a hook local stays literal" ALLOW \
+  "$(rp_decision_cwd 'out=dist && rm -rf $out/assets')"
+assert_decision "a set-but-empty hook local stays literal" ALLOW \
+  "$(rp_decision_cwd 'q=queue && rm -rf $q/tmp')"
+assert_decision "braced form stays literal too" ALLOW \
+  "$(rp_decision_cwd 'rm -rf ${out}/dist')"
+assert_decision "a mid-parse hook local stays literal" ALLOW \
+  "$(rp_decision_cwd 'rm -rf $rest/x')"
+
+# A `cd` COMPOSES with the one before it. Replacing re-based every later relative
+# target on the LAST cd alone, so a chain that walked back out resolved the
+# delete outside the project and hard-DENIED an ordinary cleanup.
+assert_decision "cd in, cd out, then relative rm allowed" ALLOW \
+  "$(rp_decision_cwd 'cd src && cd .. && rm -rf build')"
+assert_decision "cd in, cd out, then rm that subtree allowed" ALLOW \
+  "$(rp_decision_cwd 'cd src && cd .. && rm -rf src/out')"
+# A subshell's cd must not outlive its ')' — the fragment splitter used to strip
+# the parens and let it stand for the rest of the chain.
+assert_decision "subshell cd does not leak past ')'" ALLOW \
+  "$(rp_decision_cwd '(cd /tmp && ./deploy.sh) && rm -rf build')"
+# `cd -` cannot be resolved, so the tracked directory is FORGOTTEN rather than
+# left stale: keeping /tmp denied an in-project cleanup with no way to override.
+assert_decision "cd - forgets the stale directory" ALLOW \
+  "$(rp_decision_cwd 'cd /tmp && cd - && rm -rf build')"
+# The cd tracker walks a wrapper prefix like every other command word here.
+# Matching a bare first token was the only spelling it knew.
+assert_decision "builtin cd then relative rm denied" DENY \
+  "$(rp_decision_cwd "builtin cd $rp_tmp/outside && rm a.txt")"
+assert_decision "pushd then relative rm denied" DENY \
+  "$(rp_decision_cwd "pushd $rp_tmp/outside && rm a.txt")"
 
 # Deleting a protected branch was blocked; MOVING one was not, though it loses
 # exactly as much. `git update-ref` does it with no branch subcommand at all,
@@ -1026,6 +1119,27 @@ assert_decision "branch --list is not a rewrite"    ALLOW "$(rp_git_decision 'gi
 assert_decision "branch -a is not a rewrite"        ALLOW "$(rp_git_decision 'git branch -a')"
 assert_decision "branch --format is not a force"    ALLOW "$(rp_git_decision 'git branch --format=%(refname)')"
 assert_decision "branch --merged is not a move"     ALLOW "$(rp_git_decision 'git branch --merged')"
+# A copy (-c/-C/--copy) overwrites its DESTINATION exactly as a force-move does,
+# and it was simply absent from the rewrite flags — `git branch -C feature
+# master` rewrote master and was allowed.
+assert_decision "branch -C copy onto protected denied" DENY \
+  "$(rp_git_decision 'git branch -C feature-x master')"
+assert_decision "branch --copy onto protected denied" DENY \
+  "$(rp_git_decision 'git branch --copy feature-x master')"
+# A copy writes its LAST argument; the source before it is only read.
+assert_decision "branch -c copy FROM a feature allowed" ALLOW \
+  "$(rp_git_decision 'git branch -c feature-x backup-x')"
+# `git branch -m <new>` renames the CHECKED-OUT branch — the name it destroys is
+# never on the command line, so this arm has to resolve it like its siblings do.
+assert_decision "single-arg -m rename off master denied" DENY \
+  "$(rp_git_decision 'git branch -m archived')"
+assert_decision "single-arg -M rename off master denied" DENY \
+  "$(rp_git_decision 'git branch -M archived')"
+# git's own global options are not the subcommand's: the '-c' of
+# `git -c k=v branch <name>` configures git, and reading it as a branch copy
+# would deny an ordinary branch create.
+assert_decision "git -c global option is not a branch copy" ALLOW \
+  "$(rp_git_decision 'git -c user.name=x branch feature-y')"
 
 # A backup suffix must not launder a file off the hard precious list. These run
 # against is_precious_name directly: the delete gate needs an untracked file to
@@ -1071,6 +1185,46 @@ assert_decision "main.py.orig is ordinary"      ORDINARY    "$(rp_precious_name 
 # A name that is nothing BUT a suffix must terminate the strip/re-test recursion.
 assert_decision "bare '.bak' terminates"        RECOVERABLE "$(rp_precious_name '.bak')"
 assert_decision "bare '~' terminates"           ORDINARY    "$(rp_precious_name '~')"
+
+# The delete GATE, not the classifier above. What reached production was the
+# gate's EXPRESSION — `is_precious && ! is_recoverable_precious`, which expands
+# to (hard || recoverable) && !recoverable, so a name on BOTH lists resolved to
+# unprotected. Every classifier assertion above kept passing while '.env.suo'
+# was silently deletable, so these drive the real hook against real files.
+for rp_pf in .env .env.suo .env.local.user credentials.suo secrets.user proj.suo notes.txt.bak; do
+  : > "$rp_git/$rp_pf"
+done
+assert_decision "delete .env denied"            DENY  "$(rp_git_decision "rm $rp_git/.env")"
+assert_decision "delete .env.suo denied"        DENY  "$(rp_git_decision "rm $rp_git/.env.suo")"
+assert_decision "delete .env.local.user denied" DENY  "$(rp_git_decision "rm $rp_git/.env.local.user")"
+assert_decision "delete credentials.suo denied" DENY  "$(rp_git_decision "rm $rp_git/credentials.suo")"
+assert_decision "delete secrets.user denied"    DENY  "$(rp_git_decision "rm $rp_git/secrets.user")"
+# ...and the recoverable class is still recoverable: a deny here reaches the
+# model, not the user, so it could never be overridden.
+assert_decision "delete proj.suo allowed"       ALLOW "$(rp_git_decision "rm $rp_git/proj.suo")"
+assert_decision "delete notes.txt.bak allowed"  ALLOW "$(rp_git_decision "rm $rp_git/notes.txt.bak")"
+
+# Claude Code spells file_path with backslashes on Windows, and splitting on '/'
+# alone left the WHOLE path as the basename — which no prefix or exact precious
+# pattern can match, so protection was silently off there for both the edit ask
+# and the delete block. OSTYPE is forced rather than read, so both platform
+# behaviours are pinned wherever this suite runs: off Windows a backslash is a
+# legal FILENAME character and must NOT split.
+rp_basename() { # $1=OSTYPE $2=path -> basename
+  rp_drive_fn "OSTYPE=$1" basename_of 'basename_of "$1"; printf "%s" "$_basename"' "$2"
+}
+assert_decision "win basename splits on backslash"   '.env' \
+  "$(rp_basename msys 'C:\Users\me\proj\.env')"
+assert_decision "win basename of credentials.json"   'credentials.json' \
+  "$(rp_basename msys 'C:\proj\credentials.json')"
+assert_decision "win basename still splits on slash" '.env' \
+  "$(rp_basename msys 'C:/Users/me/proj/.env')"
+assert_decision "win basename with mixed separators" '.env' \
+  "$(rp_basename cygwin 'C:\Users\me/proj\.env')"
+assert_decision "posix keeps a backslash in the name" 'a\b' \
+  "$(rp_basename linux-gnu 'a\b')"
+assert_decision "posix basename unchanged"           '.env' \
+  "$(rp_basename linux-gnu '/home/me/proj/.env')"
 
 echo "[restrict-paths: path normalization]"
 # EXACTLY two leading slashes are a UNC network root on MSYS/Cygwin, but plain

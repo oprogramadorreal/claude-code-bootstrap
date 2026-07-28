@@ -126,8 +126,14 @@ fi
 # The hook carries a HOOK_VERSION that the SessionStart hook compares against a
 # project's installed copy. A behavioural change that forgets to bump it ships
 # silently to everyone who already ran /optimus:permissions.
-check "restrict-paths template declares a HOOK_VERSION" \
-  grep -qE '^# HOOK_VERSION: [0-9]+' skills/permissions/templates/hooks/restrict-paths.sh
+#
+# Pinned to the first 12 lines because that is where hooks/session-start stops
+# reading. It reads the marker with a bounded loop rather than sed — the file is
+# 1400+ lines and the scan ran twice per session start — so a marker pushed past
+# the bound would read as v0 on both sides and turn the freshness check into a
+# silent no-op, which is exactly the failure this check exists to prevent.
+check "restrict-paths template declares a HOOK_VERSION in its first 12 lines" \
+  bash -c "head -12 skills/permissions/templates/hooks/restrict-paths.sh | grep -qE '^# HOOK_VERSION: [0-9]+'"
 
 # --- 4c. Dogfooded coding-guidelines matches its shipped template ---
 # .claude/docs/coding-guidelines.md is this repo's own copy of the file
@@ -331,6 +337,15 @@ if command -v jq &>/dev/null; then
   if [ -n "$json_errors" ]; then
     printf "       Invalid JSON:\n%b" "$json_errors"
   fi
+
+  # This repo's own settings.json must carry every deny rule the template ships.
+  # Same dogfooding gap the restrict-paths and coding-guidelines pins close, and
+  # it had already opened: the template narrowed `Bash(*git push --force*)` to a
+  # pair that does not swallow `--force-with-lease`, this copy kept the greedy
+  # glob, and the repo denied its own /optimus:pr flow. One-directional on
+  # purpose — extra project-specific denies here are fine.
+  check "settings.json carries every template deny rule" \
+    bash -c "jq -e --slurpfile tpl skills/permissions/templates/settings.json '(\$tpl[0].permissions.deny - .permissions.deny) | length == 0' .claude/settings.json >/dev/null"
 else
   echo "  SKIP  JSON template checks (jq not installed)"
 fi
@@ -500,6 +515,20 @@ require_tokens() {
   done
 }
 
+# require_min_count <identifier> <min> <file>: occurrence-count floor, for the
+# case where a contract needs the identifier on BOTH ends of a step and a single
+# surviving mention would satisfy require_tokens while the pairing is already
+# broken. `|| true` lets the count=0 case reach the comparison instead of
+# aborting under set -e — count=0 is exactly what this catches.
+require_min_count() {
+  local identifier=$1 expected=$2 file=$3 actual
+  actual=$(grep -cF -- "$identifier" "$file" 2>/dev/null || true)
+  [ -z "$actual" ] && actual=0
+  if [ "$actual" -lt "$expected" ]; then
+    contract_errors+="  $file cross-step identifier '$identifier' appears $actual times, expected >=$expected\n"
+  fi
+}
+
 # Scenario contract: brainstorm's spec template emits these headings; tdd's
 # scenario-driven shortcut greps specs for them.
 require_tokens skills/brainstorm/SKILL.md '## Scenarios' '### Scenario:'
@@ -557,6 +586,66 @@ require_tokens skills/how-to-run/SKILL.md 'How-to-Run Audit Results'
 # the fallback. Dropping either side silently loses unknown-stack support.
 require_tokens skills/how-to-run/agents/project-environment-detector.md '### Unsupported-Stack Fallback' '- **Triggered:**'
 require_tokens skills/how-to-run/SKILL.md 'Triggered: yes' 'unsupported-stack-fallback.md'
+
+# The rest of that same return block. Pinning only the outer '## Context
+# Detection Results' heading above pins the envelope and none of the contents:
+# SKILL.md Steps 1 and 4 branch on these exact sub-headings and fields, so a
+# one-sided rename yields a block that arrives intact and reads as "nothing
+# detected" — service coverage collapses, schema bootstrap stops rendering, and
+# workspace-aware command branching is lost, with every other check green. Same
+# criterion (b) as the envelope; the boundary does not stop at the first heading.
+require_tokens skills/how-to-run/agents/project-environment-detector.md \
+  '### Recommended Developer Tools' \
+  '### External Services' \
+  '### Environment Setup' \
+  '### Schema Bootstrap' \
+  '### Runtime Ports' \
+  '### Components' \
+  '- **Workspace kind:**' \
+  '- **Setup scripts:**' \
+  '- **Pre-commit hooks:**' \
+  '- **direnv:**' \
+  '- **Local TLS cert:**' \
+  '- **Database migrations:**' \
+  '| Key leaves |' \
+  '| Secrets committed |'
+
+# Audit verdicts: values the auditor agent returns and two consumers match on by
+# name — SKILL.md Step 3's per-item prompts and the walkthrough's per-step
+# rendering. An agent-return value is criterion (b) exactly as an agent-return
+# heading is.
+for verdict in 'Found but outdated' 'Partial' 'Missing' 'Documented but unverifiable'; do
+  require_tokens skills/how-to-run/agents/how-to-run-auditor.md "$verdict"
+done
+require_tokens skills/how-to-run/SKILL.md 'Documented but unverifiable'
+require_tokens skills/how-to-run/references/guided-walkthrough.md \
+  'Found but outdated' 'Partial' 'Missing'
+
+# The sanitization exemption is matched by FULL-LINE EQUALITY, not read for
+# meaning: Step 3/4 store each approved line in `rendered_line` under
+# `approved-unverifiable-items`, and the Step 6 audit exempts exactly those
+# lines. Both ends of that pairing have to survive — one remaining mention
+# satisfies require_tokens while the exemption is already dead (or, worse,
+# exempting lines nobody approved). Thresholds are the current counts.
+require_min_count 'approved-unverifiable-items' 1 skills/how-to-run/SKILL.md
+require_min_count 'rendered_line' 2 skills/how-to-run/SKILL.md
+require_min_count 'approved-unverifiable-items' 2 skills/how-to-run/references/step6-verification-audits.md
+require_min_count 'rendered_line' 2 skills/how-to-run/references/step6-verification-audits.md
+
+# Handoff: the paradigm criterion-(b) case — this skill writes a document to
+# disk that a LATER conversation (or /optimus:handoff itself, on a re-run) reads
+# back by these literal names. The save path and the redaction marker are read
+# by the same code path. Prose that never leaves the skill is deliberately not
+# pinned here.
+require_tokens skills/handoff/SKILL.md \
+  'docs/handoffs/' \
+  '[REDACTED:' \
+  '## Goal' \
+  '## Current state' \
+  '## Next steps' \
+  '## Relevant files & artifacts' \
+  '### Inlined (not yet on remote)' \
+  '## History'
 
 check "Producer/consumer contracts intact" test -z "$contract_errors"
 if [ -n "$contract_errors" ]; then

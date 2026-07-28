@@ -18,7 +18,8 @@
     "deny": [
       "Bash(git push --all*)",
       "Bash(git push --mirror*)",
-      "Bash(*git push --force*)",
+      "Bash(*git push --force)",
+      "Bash(*git push --force *)",
       "Bash(*git push -f *)",
       "Bash(*git push -f)",
       "Bash(*git reset --hard*)",

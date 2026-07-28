@@ -46,10 +46,40 @@ class TestCheckUnitTestConvergence:
         converged, reason = check_unit_test_convergence(output)
         assert converged is False
 
+    # These flags come off untrusted subagent JSON and decide whether the run
+    # STOPS. Nothing coerces types at the parse boundary, and a subagent emits
+    # the string "false" as readily as the literal — read raw it is truthy, so
+    # the run terminated on cycle 1 reporting a plateau that never happened.
+    def test_string_false_does_not_converge(self):
+        output = {
+            "no_new_tests": "false",
+            "no_untestable_code": "false",
+            "no_coverage_gained": "false",
+        }
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+        assert reason is None
+
+    def test_string_true_converges(self):
+        output = {"no_new_tests": "true", "no_untestable_code": "TRUE"}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is True
+
+    def test_unrecognized_flag_keeps_going(self):
+        output = {"no_new_tests": 1, "no_untestable_code": ["yes"]}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
 
 class TestCheckRefactorConvergence:
     def test_no_convergence(self):
         output = {"no_new_findings": False, "no_actionable_fixes": False}
+        converged, reason = check_refactor_convergence(output)
+        assert converged is False
+        assert reason is None
+
+    def test_string_false_does_not_converge(self):
+        output = {"no_new_findings": "false", "no_actionable_fixes": "false"}
         converged, reason = check_refactor_convergence(output)
         assert converged is False
         assert reason is None

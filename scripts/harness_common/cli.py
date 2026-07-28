@@ -69,6 +69,7 @@ from .findings import (
     finding_matches,
     mark_all_fixed,
     mark_finding_status,
+    normalize_line,
     update_scope,
 )
 from .fixes import bisect_fixes
@@ -1137,12 +1138,17 @@ def cmd_deep_step(args):
     return 0
 
 
+# The largest value that survives conversion to a float. An int above it cannot
+# take part in the arithmetic every consumer of a coverage scalar performs.
+_FLOAT_MAX = sys.float_info.max
+
+
 def _finite_number(value):
     """Coerce a subagent-supplied coverage scalar to a finite number, or None.
 
     Everything check_coverage_plateau does rests on `delta == 0`, so a value
     that is stored but not comparable to 0 silently defeats the
-    diminishing-returns net. Three ways that happens, all seen from real
+    diminishing-returns net. Four ways that happens, all seen from real
     subagent output:
 
     - `bool` is excluded FIRST, because `isinstance(True, int)` is True in
@@ -1153,19 +1159,25 @@ def _finite_number(value):
       becomes None so the caller can derive the value instead.
     - NaN/Infinity — json.loads accepts the literals and float() accepts
       "nan" — never compare == 0, so they are dropped too.
+    - An int too large to be a float compares to 0 perfectly well but CRASHES
+      the moment anything subtracts or formats it, which is worse than
+      defeating the net. Bounded here so the return value is always something a
+      caller can compute with.
     """
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, int):
-        # A Python int is arbitrary-precision and therefore always finite, so
-        # there is nothing here to test. Testing it anyway is what broke:
-        # math.isfinite() converts to float first, and json.loads produces an
-        # int of any size from a long enough literal — so a subagent emitting
-        # `{"coverage": {"before": <400 digits>}}` raised OverflowError out of
-        # cmd_unit_test_step, straight through main()'s bare
-        # `return args.func(args)`, and killed the cycle this coercion exists
-        # to protect.
-        return value
+        # A Python int is arbitrary-precision; a float is not. math.isfinite()
+        # converts before it answers, so a long enough JSON literal raised
+        # OverflowError out of this coercion instead of being judged by it —
+        # `{"coverage": {"before": <400 digits>}}` killed cmd_unit_test_step
+        # through main()'s bare `return args.func(args)`. Dropping the isfinite
+        # call alone only moved the same raise one line down, into the
+        # `after - before` derivation, which converts the int just as eagerly.
+        # So bound it HERE, at the boundary, and every consumer downstream can
+        # do float arithmetic on what this returns. These scalars are coverage
+        # percentages; one too large to be a float is not one.
+        return value if -_FLOAT_MAX <= value <= _FLOAT_MAX else None
     if not isinstance(value, float):
         try:
             value = float(str(value).strip().rstrip("%"))
@@ -1228,7 +1240,10 @@ def cmd_unit_test_step(args):
         # check_coverage_plateau compares delta == 0; derive it from before/after
         # when the subagent omitted (or null-set) it so a genuine zero-gain cycle
         # still trips the diminishing-returns net rather than running to the cap.
-        delta = after - before
+        # Back through the same coercion: two finite floats near the float
+        # ceiling still subtract to an infinity, and an infinite delta would be
+        # stored and then written out as unparseable JSON.
+        delta = _finite_number(after - before)
     if progress["coverage"]["baseline"] is None and before is not None:
         progress["coverage"]["baseline"] = before
     if after is not None:
@@ -1249,8 +1264,13 @@ def cmd_unit_test_step(args):
     # path on storage so the dedup key here and the refactor phase's touched-file
     # match are separator-agnostic — the unit-test and refactor subagents can
     # cite the same file with different separators on Windows.
+    # The line number goes through normalize_line for the same reason the file
+    # path goes through normalize_path: nothing coerces types at the parse
+    # boundary, so a subagent reporting `"line": 42` one cycle and `"line": "42"`
+    # the next produced two keys for one item — a duplicate record that inflates
+    # pending-refactor-count and buys a wasted refactor dispatch every cycle.
     existing_keys = {
-        (u.get("file"), u.get("line"), u.get("function"))
+        (u.get("file"), normalize_line(u.get("line")), u.get("function"))
         for u in progress["untestable_code"]
     }
     for item in result.get("untestable_code") or []:
@@ -1260,7 +1280,7 @@ def cmd_unit_test_step(args):
             # and waste a refactor dispatch every cycle. Skip it.
             continue
         item_file = normalize_path(item["file"])
-        key = (item_file, item.get("line"), item.get("function"))
+        key = (item_file, normalize_line(item.get("line")), item.get("function"))
         if key in existing_keys:
             continue
         existing_keys.add(key)
