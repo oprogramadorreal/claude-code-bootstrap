@@ -16,9 +16,9 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli resume \
     --project-dir "."
 ```
 
-If exit code is non-zero, surface the error and stop. Pass `<cap-flag> N` through whenever the user supplied it on `--resume` — the CLI clamps it to the hard cap and, when the prior run ended at its cap, refuses a value at or below the completed count. `resume` persists the new cap (and clears a prior `diminishing-returns` stop) so the loop can continue past the previous limit.
+If exit code is non-zero, surface the error and stop. Pass `<cap-flag> N` through whenever the user supplied it on `--resume` — the CLI clamps it to the hard cap and, when the prior run ended at its cap, refuses a value at or below the completed count. `resume` persists the new cap (and clears a prior soft-exit stop) so the loop can continue past the previous limit.
 
-`--resume` only continues a run whose progress file is still on disk: an interrupt, or a `diminishing-returns` soft-exit (the CLI leaves that run un-archived). A run that finished cleanly was archived to `.done.json`, which `resume` refuses — for a fresh pass after that, re-run the skill without `--resume` so `init` starts a new run.
+`--resume` only continues a run whose progress file is still on disk: an interrupt, or one of the two soft exits the CLI leaves un-archived — `diminishing-returns`, and `blocked` (coverage target only, once you have cleared the prerequisite that stopped it). A run that finished cleanly was archived to `.done.json`, which `resume` refuses — for a fresh pass after that, re-run the skill without `--resume` so `init` starts a new run.
 
 ## On fresh run
 

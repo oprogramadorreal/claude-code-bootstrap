@@ -197,7 +197,7 @@ TERMINATION=$(PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.
     --progress-file "<progress-path>")
 ```
 
-Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above.)
+Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`, `blocked`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above. `blocked` is echoed back here after the unit-test phase records it — see that step.)
 
 ## After the loop
 
