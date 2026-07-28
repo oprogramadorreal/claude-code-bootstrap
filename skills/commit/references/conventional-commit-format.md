@@ -22,7 +22,6 @@ Always produce a Conventional Commits message, regardless of the repository's ex
 
 - Types: `feat`, `fix`, `refactor`, `docs`, `style`, `test`, `chore` (includes build, CI, dependencies), `perf`
 - Subject under 72 characters, imperative mood; add a body only when the subject alone is insufficient
-- Never include `Co-Authored-By` or other attribution trailers
 
 ## Splitting
 

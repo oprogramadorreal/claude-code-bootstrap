@@ -18,7 +18,7 @@
 
 ## Writing Tests
 
-[2-4 bullets: project-specific test conventions — file naming, describe/it patterns, fixture handling, mock patterns, setup/teardown, any testing utilities the project provides]
+[At most 4 bullets — a ceiling, not a target: test conventions specific to this project — file naming, describe/it patterns, fixture handling, mock patterns, setup/teardown, testing utilities the project provides. Skip whatever the framework's defaults already imply.]
 
 ## Workflow
 

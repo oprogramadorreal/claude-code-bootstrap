@@ -10,6 +10,13 @@ COMMIT_COMMITTED = "committed"
 COMMIT_NOTHING = "nothing-to-commit"
 COMMIT_FAILED = "failed"
 
+# Termination reasons that leave the run resumable. final-report --archive skips
+# archiving for these: archiving renames the progress file to .done.json, which
+# cmd_resume refuses. Both are soft exits the user can act on and continue from —
+# a yield plateau, or a prerequisite the run cannot fix for itself (no test
+# framework, red baseline) that /optimus:init or a triage pass resolves.
+RESUMABLE_TERMINATIONS = frozenset({"diminishing-returns", "blocked"})
+
 FIXED_STATUSES = frozenset({"fixed", "retained — revert failed"})
 REVERTED_STATUSES = frozenset(
     {"reverted — test failure", "reverted — attempt 2", "skipped — apply failed"}

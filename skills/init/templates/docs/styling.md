@@ -6,7 +6,7 @@
 
 ## Conventions
 
-[2-4 bullets: component styling patterns, class naming approach, theme/design tokens, responsive breakpoints, any design system in use]
+[At most 4 bullets — a ceiling, not a target: component styling patterns, class naming, theme or design tokens, responsive breakpoints, design system in use. Write none and delete the section rather than filler.]
 
 ## File Organization
 

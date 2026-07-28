@@ -11,11 +11,37 @@ def generate_finding_id(progress):
     return f"f-{len(progress['findings']) + 1:03d}"
 
 
+def _normalize_line(value):
+    """Coerce a line number so that 42 and "42" are the SAME finding.
+
+    Nothing coerces types at the parse boundary — ``parse_harness_output`` only
+    checks that the payload is a dict, and the JSON schemas are enforced by a
+    validator that lives in the test suite — so a subagent is free to report
+    ``"line": 42`` on one iteration and ``"line": "42"`` on the next. Untouched,
+    the two produce different keys and therefore two findings, which silently
+    disables the escalation ladder in ``_escalate_revert_status``: neither copy
+    ever sees a second "reverted — test failure", so nothing reaches "attempt 2"
+    or persistent and the harness retries the same broken fix until the
+    iteration cap.
+
+    A value that is not a number at all keeps its string form rather than
+    collapsing to None, so two genuinely different findings cannot merge.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(float(str(value).strip()))
+    except (TypeError, ValueError, OverflowError):
+        return str(value)
+
+
 def finding_key(item):
     """Extract the (file, line, category) key used to match findings and fixes."""
     return (
         normalize_path(item.get("file", "")),
-        item.get("line"),
+        _normalize_line(item.get("line")),
         item.get("category"),
     )
 

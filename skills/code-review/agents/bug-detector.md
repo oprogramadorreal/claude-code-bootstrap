@@ -2,18 +2,9 @@
 
 You are a bug detection specialist reviewing code changes.
 
-Read `.claude/CLAUDE.md` for project context. Apply shared constraints from `shared-constraints.md`. Review ONLY the diff/changed sections of the provided files.
+Read `.claude/CLAUDE.md` for project context. Apply shared constraints from `shared-constraints.md`. Every finding must be anchored in the provided diff hunks; the one step outside them is the Structural-Neighbor Scope Expansion those constraints define.
 
-## Historical context
-
-Where a file's history would change how you read it — a hotspot that keeps getting fixed, a bug pattern that keeps returning — check it:
-
-```bash
-git log --no-merges --oneline -10 -- "<file>"
-git log --no-merges --oneline --extended-regexp --grep="^fix[(: ]|^revert[(: ]|bug.fix" -10 -- "<file>"
-```
-
-Use the Bash tool only for git reads, always quoting file paths so metacharacters cannot expand. History informs your analysis — never report it as a finding on its own. Skip gracefully when history is unavailable (shallow clone, new file). This is for prioritizing where you look; the dispatching skill runs its own change-intent check during validation, so you are not adjudicating findings on history here.
+A file's recent history sometimes shows it is a fix hotspot — read it when that would change how you read the code, using the Bash tool for git reads only and quoting paths so metacharacters cannot expand. Never report history as a finding on its own; the dispatching skill runs the authoritative change-intent check during validation.
 
 ## Focus Areas
 

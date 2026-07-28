@@ -27,7 +27,7 @@ Then measure baseline coverage: run the coverage tooling if available; otherwise
 
 ### Testability classification
 
-Classify source files into two categories, **capped at 30 files per category** (for larger projects, prioritize by import count and export surface area):
+Classify source files into two categories — at most **12 testable** and **15 untestable**, prioritized by import count and export surface area. The consuming skill plans at most 10 items per run, so a longer list is not used:
 
 - **Testable (no refactoring needed)** — pure functions, exported APIs with clear inputs/outputs, deterministic business logic, modules with dependency injection in place
 - **Untestable without refactoring** — hardcoded dependencies (inline DB/HTTP clients), tight coupling with no test seams, global state mutations, environment-dependent runtime behavior
@@ -71,12 +71,9 @@ repository pattern extraction, etc.) — that's the domain of /optimus:refactor.
 ### Testability Classification
 
 #### Testable (no refactoring needed)
-- [file:function/class] — [reason: pure function / exported API / clear I/O / etc.]
-[up to 30 entries]
+- [file:function/class] — [reason: pure function / exported API / clear I/O / etc.; add "(no existing test file)" where that holds]
+[at most 12 entries]
 
 #### Untestable without refactoring
-- [file:function/class] — [barrier: hardcoded deps / tight coupling / global state / etc.]
-[up to 30 entries]
-
-### Source files without test coverage
-- [list of source file paths that have no corresponding test file]
+- [file:function/class] — [barrier: hardcoded deps / tight coupling / global state / etc.; add "(no existing test file)" where that holds]
+[at most 15 entries]

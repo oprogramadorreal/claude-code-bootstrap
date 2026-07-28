@@ -19,7 +19,7 @@ Analyze local git changes (or a PR/MR) against the project's coding guidelines w
 
 ## Step 2: Inline Harness Mode Detection
 
-If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow its single-iteration execution protocol — it covers progress-file reading, scope and file-list rules, agent-prompt overrides, and the apply/output protocol. Proceed through Steps 3–7, skip Step 8 (the orchestrator handles approval upfront), apply the fixes mechanically, emit the structured JSON per the harness-mode output protocol — `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract it must satisfy — and stop. Do not use `AskUserQuestion`. Do not loop.
+If your invocation prompt body contains `HARNESS_MODE_INLINE`, you are running inside the `/optimus:deep` orchestrator as a single iteration. Read `$CLAUDE_PLUGIN_ROOT/references/harness-mode.md` and follow it — that reference governs which of the steps below run, how scope and agent prompts are overridden, and how this run ends.
 
 If `HARNESS_MODE_INLINE` is NOT present, continue with the standard interactive flow below.
 
@@ -75,7 +75,11 @@ Present a brief context summary (docs loaded, docs missing with fallback status,
 
 ## Step 5: Parallel Multi-Agent Review (5–7 agents)
 
-Launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each agent below covers a lens the others do not, so dropping one leaves that category unreviewed; the conditional rules are how the fan-out shrinks on a narrow diff.
+The table below is the list of lenses this review has to cover. How many contexts you cover them in is yours to size.
+
+**On a small diff — roughly 3 files or fewer and under 150 changed lines — apply the lenses yourself in one pass.** Five subagents over a five-line change each re-read the project docs and the same diff to produce findings you would reach directly; read the agent prompt files for their criteria and work through them. Fan out when the diff is large enough that one context cannot hold it with the docs, when the lenses need to read genuinely different parts of the tree, or in harness mode where the iteration's context is fresh and disposable.
+
+When you do fan out, launch every applicable agent as a `general-purpose` Agent tool call in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each agent covers a lens the others do not, so dropping one leaves that category unreviewed; the conditional rules below are how the fan-out shrinks on a narrow diff.
 
 | Agent | Role | Prompt file |
 |-------|------|-------------|
@@ -89,13 +93,15 @@ Launch every applicable agent as a `general-purpose` Agent tool call in a **sing
 
 Agents 1–5 always run. Agent 6 runs when test infrastructure is detected (`.claude/docs/testing.md` or a subproject `docs/testing.md` exists). Agent 7 runs when any changed file matches a contract pattern — directory patterns: `api/`, `routes/`, `controllers/`, `endpoints/`, `handlers/`, `graphql/`, `proto/`, `grpc/`; file patterns: `*.dto.*`, `*.schema.*`, `*.contract.*`, `openapi.*`, `swagger.*`, `*.proto`, `*.graphql`, `*.gql`. No match → skip Agent 7 entirely.
 
-**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace `guideline-reviewer.md`'s "Dynamic Prompt Construction" section with the concrete doc-reading instructions for this project's layout from Step 4 — that section addresses the dispatcher, not the agent.
+**Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace the `<!-- dispatcher: ... -->` line in `guideline-reviewer.md` with the concrete doc paths resolved in Step 4 for this project's layout.
 
 End every assembled prompt with the changed-file list (from Step 3, or `scope_files.current` in harness mode when pre-populated) followed by the diff hunks — at minimum the changed line ranges per file when the diff is too large to inline. Agents have no sanctioned way to compute the diff themselves; never send file paths alone. Findings are bounded by the Finding Cap in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`.
 
 ### PR/MR context injection (PR/MR mode only)
 
-If the `pr-description` body captured in Step 3 is non-empty, prepend the PR/MR Context Block from `$CLAUDE_PLUGIN_ROOT/references/context-injection-blocks.md` (template, truncation rule, guardrail language) to every agent prompt immediately before the file list. Under `HARNESS_MODE_INLINE` on iterations 2+, also prepend the Iteration Context Block from the same reference — it defines the ordering when both blocks apply. Wait for all launched agents to complete before proceeding to Step 6.
+If the `pr-description` body captured in Step 3 is non-empty, prepend the PR/MR Context Block from `$CLAUDE_PLUGIN_ROOT/references/context-injection-blocks.md` (template, truncation rule, guardrail language) to every agent prompt immediately before the file list. Under `HARNESS_MODE_INLINE` on iterations 2+, also prepend the Iteration Context Block from the same reference — it defines the ordering when both blocks apply.
+
+Wait for all launched agents to complete before proceeding to Step 6. This applies to every mode, not just the PR/MR path above: an agent still running when Step 6 starts contributes no findings to validate and none to the report, and the review prints its verdict anyway.
 
 ## Step 6: Validate Findings
 
@@ -114,7 +120,7 @@ If a `pr-description` was captured, use it as an additional soft signal: an expl
 - **Dedupe**: same file + line range + category → keep the more detailed version. When two agents reached it independently, merge into one and note "confirmed by independent review".
 - **Contradictions**: findings on the same code region recommending opposite directions (e.g., "add validation" vs. "simplify this validation") → keep the higher severity; on ties, keep the security/correctness finding — security requirements justify proportionate complexity.
 - **Severity**: **Critical** — bugs, security vulnerabilities, runtime failures, Intent Mismatch contradicting a stated non-goal. **Warning** — guideline violations, missing error handling, coverage gaps on critical paths, backward-incompatible contract changes, Intent Mismatch on unsupported scope claims. **Suggestion** — quality improvements, minor drift, Intent Mismatch on partial matches.
-- **Finding cap**: max **15 domain findings** in the report, prioritized by severity then confidence. `Intent Mismatch` findings surface on top of the 15 — up to 5, deduplicated across agents, sorted by severity, presented after the domain findings (the per-agent budget is registered in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` "Finding Cap"). If more issues exist, note the count and suggest a narrower scope or `/optimus:deep review`.
+- **Finding cap**: max **15 domain findings** in the report, prioritized by severity then confidence. `Intent Mismatch` findings surface on top of the 15 — up to 5, deduplicated across agents, sorted by severity, presented after the domain findings. If more issues exist, note the count and suggest a narrower scope or `/optimus:deep review`.
 
 Open with a **Change Summary** — 2–4 factual sentences on what the changes accomplish — so the user can verify the review understood them.
 
@@ -169,7 +175,7 @@ Verdict **ISSUES FOUND** → `AskUserQuestion` (header "Action", question "How w
 
 ## Important
 
-- This skill is read-only by default: never modify files, commit, push, or post comments without explicit user approval. Approved fixes remain local modifications for the user to review with `git diff` before committing.
+- Outside harness mode this skill is read-only: never modify files, commit, push, or post comments without explicit user approval, and approved fixes remain local modifications the user reviews with `git diff` before committing. Under `HARNESS_MODE_INLINE` the orchestrator holds that approval and Step 2's protocol governs instead.
 - When changes are too broad for effective review, recommend narrowing scope.
 
 Close by recommending the next step: issues fixed → `/optimus:commit`; clean or fixes skipped → `/optimus:pr` (skip when already reviewing a PR/MR) — either way, stay in this conversation so the implementation context is captured. For iterative auto-fix, run `/optimus:deep review` in a fresh conversation.

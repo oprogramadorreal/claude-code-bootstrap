@@ -34,7 +34,7 @@ Covers the Claude 5 family (Opus 5, Sonnet 5, Fable 5) and Claude 4.x. Where the
 - Provide context and reasoning WHY, not just WHAT — Claude generalizes better from explanations
 - For complex or multi-step tasks, front-load everything in one turn — intent, constraints, acceptance criteria, relevant files; extra back-and-forth adds reasoning overhead and cost
 - Don't add "think step by step" or a fixed thinking budget — current Claude calibrates reasoning depth automatically. To nudge: "Think carefully before responding" (more) or "Prioritize responding quickly" (less)
-- **Never add a self-verification step.** "Double-check your answer", "verify the output against the constraints above", "re-check before responding" — Claude 5 models verify and self-correct on their own, so these compound into wasted passes and buy no quality. This overrides SKILL.md Step 5's generic self-check diagnostic for every Claude target.
+- **Never add a self-verification step.** "Double-check your answer", "verify the output against the constraints above", "re-check before responding" — Claude 5 models verify and self-correct on their own, so these compound into wasted passes and buy no quality.
 - **Bound scope with intent, not prohibitions.** Claude 5 models can widen a task past what was asked (Claude 4.x and Fable 5 over-tidy the same way). One line covers it: *"Deliver what was asked, at the scope intended. Make routine judgment calls yourself; check in only when two readings of the request would lead to materially different work. If a better approach exists, say so in a sentence and continue as asked."*
 - **Length is a separate lever from reasoning.** Claude 5 responses run longer by default, and lowering reasoning effort does not shorten them — ask directly: *"Keep responses focused and brief; spend most of the response on the main answer."* When the prompt produces a written file, add: *"Match the document's length to the substance — no filler sections, redundant summaries, or boilerplate."*
 - Don't instruct Fable 5 to echo or transcribe its reasoning as output text — that can trigger a refusal and fallback to Opus
@@ -66,17 +66,16 @@ These models reason internally across thousands of tokens. Adding CoT or "think 
 ### o3 / o4-mini
 
 - SHORT clean instructions ONLY — state what you want and what done looks like, nothing more; system prompts under 200 words
-- NEVER add CoT, "think step by step", or reasoning scaffolding
 - Prefer zero-shot first — add few-shot only if strictly needed
 
 ### DeepSeek-R1
 
-- Reasoning-native like o3 — do NOT add CoT; short clean instructions, goal and output format only
+- Short clean instructions — goal and output format only
 - Outputs reasoning in `<think>` tags by default — add "Output only the final answer, no reasoning." if needed
 
 ### Qwen3 (thinking mode)
 
-- Thinking mode (/think or enable_thinking=True): treat exactly like o3 — short clean instructions, no CoT, no scaffolding
+- Thinking mode (/think or enable_thinking=True): treat exactly like o3 — short clean instructions, no scaffolding
 - Non-thinking mode: treat like Qwen 2.5 instruct — full structure, explicit format, role assignment
 
 ## Open-Weight LLMs
@@ -101,6 +100,8 @@ These models reason internally across thousands of tokens. Adding CoT or "think 
 
 ## IDE AI
 
+Every entry below: anchor each instruction to a path — never a global instruction without a file or directory anchor. Split work that spans several independent changes into sequential prompts per the output contract in SKILL.md.
+
 ### Claude Code
 
 - Agentic — runs tools, edits files, executes commands autonomously. Structure per Template H: starting state + target state + allowed/forbidden actions + stop conditions + checkpoints
@@ -108,9 +109,7 @@ These models reason internally across thousands of tokens. Adding CoT or "think 
 - Every steer in the [Claude entry](#claude-claudeai-claude-api) applies — scope bounding, length, and above all the no-self-verification rule; effort and thinking depth are harness-managed, so never hardcode an effort level or thinking budget
 - Delegates to subagents readily on Claude 5 — cap it rather than request it: *"Delegate only for large, genuinely independent tracks of work. Don't delegate what you can finish in a handful of tool calls, and don't use subagents to verify your own work. Keep spawn counts low."*
 - Narrates readily during agentic work. If cadence matters, describe the shape you want instead of banning updates: *"Say in one sentence what you're about to do before your first tool call; while working, update only on something important or a change of direction; lead your final message with the outcome."*
-- Always scope to specific files and directories — never a global instruction without a path anchor
 - Human review triggers required: "Stop and ask before deleting any file, adding any dependency, or affecting the database schema"
-- For complex tasks: split into sequential prompts. Output Prompt 1 and add "Run this first, then ask for Prompt 2" below it
 
 ### Claude Code (plan mode)
 
@@ -124,16 +123,15 @@ These models reason internally across thousands of tokens. Adding CoT or "think 
 
 ### Cursor / Windsurf
 
-- File path + function name + current behavior + desired change + do-not-touch list + language and version — never a global instruction without a file anchor
+- File path + function name + current behavior + desired change + do-not-touch list + language and version
 - "Done when:" is required — defines when the agent stops editing
-- For complex tasks: split into sequential prompts rather than one large prompt
 
 ### Cline (formerly Claude Dev)
 
 - Agentic VS Code extension — edits files, runs terminal commands, uses browser tools; powered by Claude, GPT, or others, so match the prompt style to the underlying model
 - Starting state + target state + file scope + stop conditions + approval gates; specify which files to edit and which to leave untouched
 - Add "Ask before running terminal commands" or "Ask before installing dependencies" to prevent unwanted actions
-- Shows a task list before executing — for multi-step work, break into sequential prompts with clear checkpoints
+- Shows a task list before executing
 
 ### GitHub Copilot
 

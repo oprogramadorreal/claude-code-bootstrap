@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.2.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.3.2-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -85,7 +85,7 @@ Research backs this up: AI tools introduce [30%+ more defects](https://arxiv.org
 
 Another key point: [providing LLMs with tests alongside tasks consistently improves code generation](https://arxiv.org/abs/2402.13521). Tests enable self-correction — Anthropic's [#1 best practice](https://code.claude.com/docs/en/best-practices) for Claude Code is giving it a way to verify its work, and unit tests and TDD are the purest way to achieve it.
 
-AI assistants also tend toward [sycophancy](https://blog.scielo.org/en/2026/03/13/sycophancy-in-ai-the-risk-of-complacency/) — validating ideas without critical pushback. This plugin counters that: every skill enforces project-defined standards as the source of truth, quality claims require evidence from actual command output, code review runs independent duplicate guideline agents and verifies each finding against the code, and TDD ensures tests define what is correct instead of relying on the AI's confidence.
+AI assistants also tend toward [sycophancy](https://blog.scielo.org/en/2026/03/13/sycophancy-in-ai-the-risk-of-complacency/) — validating ideas without critical pushback. This plugin counters that: every skill enforces project-defined standards as the source of truth, quality claims require evidence from actual command output, code review runs independent agents on separate lenses and validates every finding against the code before reporting it, and TDD ensures tests define what is correct instead of relying on the AI's confidence.
 
 ## Complementary Tools
 

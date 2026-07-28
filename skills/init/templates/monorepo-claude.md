@@ -10,23 +10,28 @@
 |---------|---------|-------|
 | `[path]` | [purpose] | [stack] |
 
+Each subproject has its own CLAUDE.md, loaded automatically when working in that directory.
+
 ## Commands
 
 [Root-level / workspace-wide commands only: build all, test all, lint all]
 
-## Subproject Docs
-
-Each subproject has its own CLAUDE.md with subproject-specific guidance:
-- `[path]/CLAUDE.md` - [one-line description]
-
-## Before Writing Code
-
-ALWAYS read `.claude/docs/coding-guidelines.md` before planning or implementing any changes to code files. All code must follow these principles.
-
-<!-- If skill authoring was detected, init adds a second sentence here: "For changes to markdown instruction files (under skills/, agents/, prompts/, commands/, or instructions/), ALWAYS read `.claude/docs/skill-writing-guidelines.md` instead — those files follow different quality rules than code." -->
-
 ## Documentation
 
-<!-- Only list docs that were actually created; coding-guidelines and skill-writing-guidelines are covered above -->
-<!-- If >6 subprojects: - `.claude/docs/architecture.md` - Full architecture map -->
+Read the doc that matches the change — not all of them.
 
+| Changing | Read first |
+|---|---|
+| Code | `.claude/docs/coding-guidelines.md` |
+
+<!-- init adds one row per shared doc it actually created. When skill authoring was detected, it also adds:
+| A skill, agent, prompt, or command (markdown instruction files) | `.claude/docs/skill-writing-guidelines.md` |
+If >6 subprojects: | The subproject map | `.claude/docs/architecture.md` | -->
+
+## Gotchas
+
+[At most 5 bullets — a ceiling, not a target. Workspace-level only: cross-package invariants, a
+build that must run from the root, a package that is generated, a version pinned across packages
+for a reason, a task that silently skips packages. Subproject-specific gotchas belong in that
+subproject's CLAUDE.md. Skip anything the workspace manifest or a directory listing would reveal.
+Write none and delete this section rather than filler.]

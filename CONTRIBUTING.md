@@ -4,39 +4,6 @@
 
 ```
 optimus-claude/
-├── .claude/                    # Claude Code settings and hooks (for contributors)
-│   ├── CLAUDE.md
-│   ├── settings.json
-│   ├── docs/                  # Contributor guidelines (skill-writing, coding, architecture, testing)
-│   └── hooks/
-│       ├── format-python.py
-│       └── restrict-paths.sh
-├── .claude-plugin/
-│   ├── plugin.json           # Plugin metadata (name, version, author)
-│   └── marketplace.json      # Marketplace catalog (how Claude Code discovers the plugin)
-├── agents/                    # Plugin-level agents — standalone, user-invokable quality agents
-│   ├── code-simplifier.md     # Code simplification agent
-│   ├── test-guardian.md       # Test coverage monitoring agent
-├── references/                # Shared reference docs consumed across skills (see the Reference Hierarchy in .claude/docs/architecture.md)
-├── hooks/
-│   ├── hooks.json            # Plugin-level hooks (SessionStart for skill awareness)
-│   └── session-start         # Outputs dynamic project state on session start/resume/clear/compact
-├── scripts/
-│   ├── validate.sh           # Structural validation (CI)
-│   ├── test-hooks.sh         # Hook execution tests (CI)
-│   ├── generate-fixtures.sh  # Generates minimal project fixtures for testing (local)
-│   ├── test-skills.sh        # Automated skill execution tests via claude -p (local)
-│   └── harness_common/       # Shared modules + cli.py invoked by the /optimus:deep orchestrator skill
-│       ├── cli.py            # Subcommand CLI (init, snapshot, deep-step, etc.)
-│       ├── findings.py       # Status escalation state machine
-│       ├── convergence.py    # Coverage convergence checks
-│       ├── fixes.py          # Apply / revert / bisect (mechanical, content-based)
-│       ├── git.py            # Checkpoint commits, stash, branch-base detection, PR fetch
-│       ├── parser.py         # JSON-block extraction from subagent output
-│       ├── progress.py       # JSON read/write/backup
-│       ├── runner.py         # Test runner with platform-aware bash routing
-│       ├── reporting.py      # Cumulative report printing + commit-body builders (also test-command detection)
-│       └── constants.py      # Shared status / cap constants
 ├── skills/
 │   ├── init/                 # /optimus:init
 │   ├── how-to-run/           # /optimus:how-to-run
@@ -54,18 +21,8 @@ optimus-claude/
 │   ├── brainstorm/           # /optimus:brainstorm (design | scaffold)
 │   ├── handoff/              # /optimus:handoff
 │   └── jira/                 # /optimus:jira
-├── test/
-│   ├── expected-outputs.yaml # Expected outputs for skill tests
-│   ├── harness-common/       # Python unit tests for the harness CLI and shared modules
-│   └── fixtures/             # Generated project fixtures (gitignored)
-├── requirements-dev.txt      # Python dev dependencies (pytest, pytest-cov, black, isort)
-├── install.cmd               # Create .venv and install dev dependencies
-├── test.cmd                  # Run Python unit tests
-├── test-coverage.cmd         # Run Python tests with coverage report
-├── pyproject.toml            # pytest configuration (importlib import mode)
-├── README.md
-├── CONTRIBUTING.md
-└── LICENSE
+└── scripts/harness_common/    # orchestrator CLI: cli.py plus findings, convergence,
+                              # fixes, git, parser, progress, runner, reporting, constants
 ```
 
 ## Skill anatomy
@@ -85,27 +42,11 @@ skills/<skill-name>/
 
 **`SKILL.md`** is the key file. It starts with YAML frontmatter and contains the instructions Claude Code follows when the skill is invoked:
 
-```yaml
----
-description: Short description shown in /plugin install output
-disable-model-invocation: true
-argument-hint: "[optional-args]"
----
-
-# Skill Title
-
-Step-by-step instructions...
-```
-
-All skills **must** use `disable-model-invocation: true`. Skills that take arguments should also set `argument-hint` (quoted — bare brackets parse as a YAML list); it is shown in the `/` menu autocomplete. The rationale for this rule lives in `.claude/docs/skill-writing-guidelines.md` under Structure.
-
-**Shared references:** when a procedure is used by 2+ skills, extract it to a reference file owned by the canonical skill — see `.claude/docs/skill-writing-guidelines.md` under Structure for the rule.
-
-**Note:** The `name` field is intentionally omitted from frontmatter. When present, it strips the plugin namespace prefix — `/optimus:init` would appear as just `/init`, shadowing the builtin command. See [anthropics/claude-code#22063](https://github.com/anthropics/claude-code/issues/22063).
+Frontmatter rules — including why there is no `name:` field — are in `.claude/docs/skill-writing-guidelines.md` under Structure, and `scripts/validate.sh` enforces them.
 
 ## Agent architecture
 
-Two tiers, no inheritance. **Plugin-level agents** (`agents/`) are standalone, user-invokable quality agents. **Skill-level agents** (`skills/<name>/agents/`) are self-contained prompt files a SKILL.md launches via the Agent tool — each carries its own criteria inline. Shared behavioral rules live once in `references/shared-agent-constraints.md`; a skill's own `agents/shared-constraints.md` holds only genuine addendums plus the skill's canonical output format. The dispatch-time path-substitution rule is in `references/agent-architecture.md`.
+Two tiers, no inheritance. The rules — and the dispatch-time path-substitution requirement — are in `.claude/docs/skill-writing-guidelines.md` under Agents and in `references/agent-architecture.md`.
 
 ## Adding or modifying a skill
 
@@ -117,50 +58,19 @@ Two tiers, no inheritance. **Plugin-level agents** (`agents/`) are standalone, u
 
 Follow the conventions visible in existing skills — study `skills/worktree/` for a minimal example or `skills/init/` for a full-featured one.
 
-### Output tone and formatting
-
-The content rules for skill bodies (no decorative emoji in output templates, no hand-rolled "[Step N/M]" progress indicators, imperative fan-out counts for parallel-agent steps) live in `.claude/docs/skill-writing-guidelines.md` under "Writing Style".
-
 ## Skill-authoring projects as a stack
 
 `/optimus:init` detects **skill authoring** as a first-class stack alongside Python, Node, Rust, Go, UI frameworks, and so on. The detection signal is structural: a directory named `skills/`, `agents/`, `prompts/`, `commands/`, or `instructions/` at the repo root — and for monorepos, also at each detected subproject root — containing ≥2 subdirectories, every such subdirectory holding a file named `SKILL.md`, `AGENT.md`, `PROMPT.md`, `COMMAND.md`, or `INSTRUCTION.md` (case-insensitive). When detected, init installs `.claude/docs/skill-writing-guidelines.md` from its framework-agnostic template, and the shared `skills/init/references/constraint-doc-loading.md` reference automatically routes review/refactor skills to use that lens for markdown instruction files while keeping `coding-guidelines.md` as the lens for code files.
 
 This means optimus supports Claude Code plugins (including optimus-claude itself), Codex skill repos, prompt libraries, custom agent frameworks, and any other project whose "source code" is markdown instructions authored for an AI agent.
 
-For the full routing rules, see the "Skill authoring lens" section of `skills/init/references/constraint-doc-loading.md`. For the template content installed into skill-authoring projects, see `skills/init/templates/docs/skill-writing-guidelines.md`.
+The routing rule itself lives in `references/shared-agent-constraints.md` under Dual Lens; the template installed into skill-authoring projects is `skills/init/templates/docs/skill-writing-guidelines.md`.
 
 ## Plugin manifests
 
-**`plugin.json`** — plugin identity and version:
+`.claude-plugin/plugin.json` carries the plugin identity and version; bump it for any meaningful change and update the version badge in `README.md` to match — `validate.sh` asserts the two agree on PR branches.
 
-```json
-{
-  "name": "optimus",
-  "version": "1.0.1",
-  "description": "...",
-  "author": { "name": "oprogramadorreal", "url": "..." },
-  "license": "MIT"
-}
-```
-
-**`marketplace.json`** — how Claude Code discovers the plugin in the marketplace:
-
-```json
-{
-  "name": "optimus-claude",
-  "plugins": [
-    {
-      "name": "optimus",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/oprogramadorreal/optimus-claude.git"
-      }
-    }
-  ]
-}
-```
-
-The `source` object supports an optional `"ref"` field to pin plugin code to a specific branch, tag, or SHA. This is only used during feature branch testing (see below) and must not be present on master.
+`.claude-plugin/marketplace.json` is how Claude Code discovers the plugin. Its `source` object accepts an optional `ref` to pin plugin code to a branch, tag, or SHA; that is only for the feature-branch testing flow below, and `validate.sh` fails while it is present.
 
 ## Testing
 
@@ -182,20 +92,7 @@ Runs on every push and PR to master. Catches broken cross-references, syntax err
 bash scripts/validate.sh
 ```
 
-Checks include:
-- CRLF and shebang consistency in scripts
-- SKILL.md frontmatter validity (`description`, `disable-model-invocation: true`, no `name:`)
-- Every `$CLAUDE_PLUGIN_ROOT/...` path resolves to an existing file
-- No orphaned files in `references/`, `templates/`, or `agents/`
-- Template scripts parse without syntax errors (bash, node, python)
-- JSON templates are valid
-- Every skill directory has both `SKILL.md` and `README.md`
-- README lists all skills
-- `hooks.json` references existing scripts
-- Plugin-level agent files have required frontmatter fields
-- Reference depth does not exceed 2 levels (SKILL → A → B max)
-- `.claude/hooks/restrict-paths.sh` is byte-identical to the template users install
-- The restrict-paths template declares a `HOOK_VERSION` (bump it on every behavioural change — the SessionStart hook uses it to spot projects running a stale copy)
+Every check prints its own name as it runs, so the script is the list. Two invariants a contributor has to know before editing it: section 17 pins only strings a program parses or that cross a conversation boundary — never the wording of a skill's own instructions — and `.claude/hooks/restrict-paths.sh` must stay byte-identical to the template users install, with `HOOK_VERSION` bumped on every behavioural change so the SessionStart hook can spot projects running a stale copy.
 
 ### Hook execution tests (CI)
 
@@ -205,18 +102,7 @@ Unit tests for the session-start hook, formatter hooks, and the path-restriction
 bash scripts/test-hooks.sh
 ```
 
-Tests all state combinations (uninitialized, partial, fully configured, dirty tree) and verifies:
-- Correct recommendations for each project state
-- Zero-output guarantee for fully configured projects
-- Formatter hooks parse JSON input and filter by file extension correctly
-- restrict-paths hook enforces the tiered path model (in-project writes allowed, out-of-project writes ask, outside deletes denied) with memory-store/scratchpad exemptions and fail-closed fallbacks
-- Temp-write nudge: a new file under the OS temp root still asks (never denies — a deny cannot be approved by the user) and carries the scratchpad reminder in `additionalContext`, the field Claude reads, not in the user-facing reason; existing files and `~/.claude` keep the plain prompt
-- Platform path shapes the exemptions must survive: trailing-slash temp root, a realpath that rejects `-m`, and a realpath that is absent entirely (the cd/pwd fallback, reached by overriding the `command` builtin — a stripped PATH breaks bash on Windows)
-- Fail-closed gates: unresolved `..` at every rung of the exemption ladder including the project root, relative and root temp roots rejected, UNC temp roots accepted, a dot segment rejected in the `<project>` slot of either exemption shape, and an unset HOME that must not anchor the memory store on the hook's CWD
-- Glob metacharacters survive path splitting as one literal segment. Without `set -f` around the unquoted split in `collapse_dot_segments`, a `*` segment expands to one name per entry in the hook's CWD, and those extra segments absorb the following `..` — an out-of-project write reads as in-project (silent allow) and an out-of-project `rm` escapes the hard block. Reachable wherever `realpath -m` is unavailable (macOS/BSD), which is the platform that function exists for
-- `//`-leading paths follow the platform's own realpath rather than a hardcoded verdict, so the suite passes on both Cygwin and Linux
-- SessionStart flags an installed `restrict-paths.sh` whose `HOOK_VERSION` is behind the plugin's
-- Every verdict is scored from the hook's exit status as well as its output, so a hook that dies before printing scores CRASH rather than being mistaken for a silent allow; a self-check pins that guard
+Each assertion names itself in the output. The rationale for individual guards lives next to the code they protect — the `set -f` block in `collapse_dot_segments` is the one worth reading before touching path handling. Note that every verdict is scored from the hook's exit status as well as its output, so a hook that dies before printing scores CRASH rather than passing as a silent allow.
 
 ### Python unit tests (CI)
 

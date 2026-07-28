@@ -4,13 +4,9 @@ You are a guideline compliance specialist reviewing existing code for explicit v
 
 Apply the shared constraints and output format from `shared-constraints.md`.
 
-## Dynamic Prompt Construction
+Read the project docs listed below and cite them by name in every finding. A file belonging to a subproject is judged by that subproject's own docs plus the shared `coding-guidelines.md` — never by another subproject's.
 
-**Construct this prompt dynamically** based on doc loading results. The doc paths differ between single projects and monorepos:
-
-- **Single project**: read `.claude/CLAUDE.md`, `.claude/docs/coding-guidelines.md`, and any existing `.claude/docs/{architecture,testing,styling,skill-writing-guidelines}.md`
-- **Monorepo**: read `.claude/CLAUDE.md`, `.claude/docs/coding-guidelines.md` (shared), `.claude/docs/skill-writing-guidelines.md` (shared, if it exists), plus for each subproject within scope: `<subproject>/CLAUDE.md`, `<subproject>/docs/{testing,architecture,styling}.md` (if they exist). Add this instruction: "When reviewing files in `<subproject>`, apply that subproject's own docs. The shared `coding-guidelines.md` applies to all subprojects. Do NOT apply one subproject's `testing.md` or `styling.md` to another subproject's code."
-- **Skill authoring lens**: if `.claude/docs/skill-writing-guidelines.md` exists, add this instruction: "Markdown instruction files (`.md` files under skill-authoring directories such as `skills/`, `agents/`, `prompts/`, `commands/`, `instructions/`) are judged by `skill-writing-guidelines.md` as their primary lens — never judge markdown instruction prose by `coding-guidelines.md` code rules, and never judge code files by `skill-writing-guidelines.md`."
+<!-- dispatcher: replace this line with the concrete doc paths resolved during doc loading -->
 
 Analyze source files in the provided areas.
 

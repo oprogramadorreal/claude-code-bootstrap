@@ -49,57 +49,11 @@ Gather: tests written (file, target, count, status), coverage change, untestable
 
 ### 5. Output structured JSON
 
-Output the results in a `json:harness-output` fenced block. `$CLAUDE_PLUGIN_ROOT/references/schemas/coverage-harness-output.schema.json` is the contract — field names, types, and which are required — and `test/harness-common/fixtures/coverage-harness-output.golden.json` is a complete worked instance. The shape:
+Output the results in one `json:harness-output` fenced block.
 
-````
-```json:harness-output
-{
-  "cycle": <cycle number from progress file>,
-  "phase": "unit-test",
-  "coverage": {
-    "tool": "<coverage tool name or null>",
-    "before": <percentage or null>,
-    "after": <percentage or null>,
-    "delta": <percentage or null>
-  },
-  "tests_written": [
-    {
-      "file": "<test file path>",
-      "target_file": "<source file being tested>",
-      "target_description": "<what it tests>",
-      "test_count": <number of test cases>,
-      "status": "<pass | fail-fixed | fail-abandoned>",
-      "failure_reason": "<reason or null>"
-    }
-  ],
-  "untestable_code": [
-    {
-      "file": "<source file path>",
-      "line": <start line>,
-      "end_line": <end line>,
-      "function": "<function or class name>",
-      "barrier": "<hardcoded-dependency | tight-coupling | global-state | ...>",
-      "barrier_description": "<brief explanation>",
-      "suggested_refactoring": "<what refactoring would help>"
-    }
-  ],
-  "bugs_discovered": [
-    {
-      "file": "<path>",
-      "line": <line>,
-      "description": "<bug behavior>",
-      "severity": "<High | Medium | Low>"
-    }
-  ],
-  "no_new_tests": <true if zero new tests were written>,
-  "no_untestable_code": <true if no untestable code was found>,
-  "no_coverage_gained": <true if coverage delta is zero or negative>,
-  "blocked": <null, or a one-line string naming the fired Step 2 stop gate and why (e.g. "no test framework detected")>
-}
-```
-````
+Read `$CLAUDE_PLUGIN_ROOT/references/schemas/coverage-harness-output.schema.json` — it is the contract, and it carries field names, types, which fields are required, and the enums. `$CLAUDE_PLUGIN_ROOT/test/harness-common/fixtures/coverage-harness-output.golden.json` is a complete worked instance to copy the shape from.
 
-Convergence signals (`no_new_tests`, `no_untestable_code`, `no_coverage_gained`) drive the orchestrator's termination check.
+Two things the schema cannot state: the convergence signals (`no_new_tests`, `no_untestable_code`, `no_coverage_gained`) drive the orchestrator's termination check, and a non-null `blocked` exits the loop immediately — so set it only for a fired Step 2 stop gate.
 
 ### 6. Exit
 

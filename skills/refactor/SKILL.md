@@ -17,7 +17,7 @@ If the current directory has no `.git/` directory, read `$CLAUDE_PLUGIN_ROOT/ski
 
 If `.claude/CLAUDE.md` or `.claude/docs/coding-guidelines.md` is missing, recommend `/optimus:init` first. On the user's choice to continue, fall back to the bundled baseline: read `$CLAUDE_PLUGIN_ROOT/skills/init/templates/docs/coding-guidelines.md` and work against it plus general best practices, and note in the report that findings are generic, not project-specific.
 
-**Focus:** a standalone unquoted `testability` or `guidelines` token (case-insensitive) in the arguments sets the focus and is consumed from the scope text; keywords inside quoted strings stay scope text (`"improve testability in auth"` → focus=null). If both keywords appear, use the first and warn that separate passes cover each. Everything remaining is natural-language scope.
+**Focus:** a bare `testability` or `guidelines` argument sets the focus and is consumed from the scope text — a keyword inside a quoted string is scope, not focus (`"improve testability in auth"` → no focus). If both appear, take the first and say the other needs its own pass. Everything remaining is natural-language scope.
 
 **Scope:** if the arguments describe a scope, map it to directory paths by scanning the project structure — no question needed. Otherwise use `AskUserQuestion` (header "Scope"):
 
@@ -41,7 +41,7 @@ If `HARNESS_MODE_INLINE` is not present, continue with the interactive flow belo
 
 ## Step 3: Load project context and map analysis areas
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md` and load the docs it lists, applying its skill-authoring lens (markdown instruction files are judged by skill-writing-guidelines.md, code by coding-guidelines.md — never cross-contaminate), its monorepo scoping rule, and its submodule exclusion. These docs define the rules: every suggestion must be justified by what they establish — never impose external preferences.
+Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md` and load the docs it lists, applying its skill-authoring lens, its monorepo scoping rule, and its submodule exclusion. These docs define the rules: every suggestion must be justified by what they establish — never impose external preferences.
 
 Within the scope, identify source directories. Skip non-source directories (dependencies, build output, framework caches, dot-directories), minified/lock/binary files, and the generated source files listed under "All Agents Exclude" in `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md`. Group areas by top-level source directory (monorepo: by subproject, then directory) and rank by recent churn:
 
@@ -53,7 +53,9 @@ Analyze highest-churn areas first; for full-project scope on a large codebase, s
 
 ## Step 4: Parallel analysis (4 agents)
 
-Launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel — separate messages serialize them for no benefit. Each covers a lens the others do not, so dropping one leaves that category unanalyzed.
+The four lenses below must all be covered. Size the fan-out to the scope: **for a handful of files, analyze them yourself in one pass** — four subagents over three files each re-read CLAUDE.md and the guideline docs to reach findings you can reach directly. Fan out for a directory or wider, where the lenses genuinely read different parts of the tree.
+
+When you do fan out, launch all 4 agents as `general-purpose` Agent tool calls in a **single** message so they run in parallel — separate messages serialize them for no benefit.
 
 | Agent | Prompt file | Finds |
 |---|---|---|
@@ -70,9 +72,9 @@ Read `$CLAUDE_PLUGIN_ROOT/references/finding-validation.md` and apply it to ever
 
 Keep **High**-confidence findings, keep **Medium** with a note, drop what your own check could not confirm — and report how many you dropped, so filtered recall stays visible. An agent's **Low** label describes its evidence, not yours: promote it if your check confirms the issue.
 
-**Deduplicate and resolve:** same file/line-range/category from two agents → keep the more detailed version; an Agent 1 + Agent 3 overlap → merge and note "confirmed by independent review". Contradictory findings on the same region (opposite directions) → higher severity wins; tie → active focus wins; no focus → testability wins.
+**Deduplicate and resolve:** same file/line-range/category from two agents → keep the more detailed version; an Agent 1 + Agent 3 overlap → merge and note "confirmed by independent review". When two agents contradict each other on the same region, decide on the evidence in the code and say which you kept and why.
 
-**Cap:** at most **15 findings**, each a distinct root cause — never pad. With an active focus, reserve 12 slots for the focused category and 3 for the rest, prioritizing by severity then confidence within each group; unused slots flow to the other group. Category mapping: `testability` → Testability Barrier findings plus any finding with a Testability impact line; `guidelines` → every other category. Without focus, rank by severity then confidence across all categories. If more issues exist, disclose it ("15 of ~24 detected") and suggest a narrower scope or `/optimus:deep refactor`.
+**Cap:** at most **15 findings**, each a distinct root cause — never pad. With an active focus, rank that category first and let only high-severity findings from the others take the remaining slots; without a focus, rank by severity then confidence across all categories. If more issues exist, disclose it ("15 of ~24 detected") and suggest a narrower scope or `/optimus:deep refactor`.
 
 ### Output format
 
@@ -116,7 +118,7 @@ Close with a final summary: scope analyzed, changes applied/skipped/reverted (wi
 
 ## Important
 
-- NEVER modify files, commit, push, or post comments without explicit user approval — all changes stay local for `git diff` review; this skill is read-only by default
+- Outside harness mode, never modify files, commit, or push without explicit user approval — all changes stay local for `git diff` review. Under `HARNESS_MODE_INLINE` the orchestrator holds that approval and Step 2's protocol governs instead.
 - When the scope is too broad for effective analysis, recommend narrowing it
 
 If fixes were applied, recommend `/optimus:commit` next — the user should stay in this conversation so the implementation context is captured — then `/optimus:unit-test` in a fresh conversation to cover the restructured code. For iterative refactoring in an automated loop, mention `/optimus:deep refactor` (requires a test command in `.claude/CLAUDE.md`).

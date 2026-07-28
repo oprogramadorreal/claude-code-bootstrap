@@ -3483,6 +3483,37 @@ class TestFinalReport:
         assert ppath.exists()
         assert not (tmp_path / "progress.done.json").exists()
 
+    def test_blocked_is_a_recordable_reason(self, tmp_path):
+        # The coverage loop's blocked gate (no test framework, red baseline) has
+        # to be recordable, or the final report names no cause at all.
+        ppath = _seed_deep_progress(tmp_path)
+        exit_code = _run(
+            "mark-termination",
+            "--progress-file",
+            str(ppath),
+            "--reason",
+            "blocked",
+            "--message",
+            "no test framework detected",
+        )
+        assert exit_code == 0
+        assert _read_progress(ppath)["termination"]["reason"] == "blocked"
+
+    def test_blocked_not_archived(self, tmp_path, capsys, monkeypatch):
+        # blocked is a soft exit on a prerequisite the USER can fix. Archiving
+        # renames the progress file to .done.json, which --resume refuses — so
+        # the run would be unresumable after the user installs the framework.
+        ppath = _seed_deep_progress(tmp_path)
+        data = _read_progress(ppath)
+        data["termination"] = {"reason": "blocked", "message": "no test framework"}
+        ppath.write_text(json.dumps(data), encoding="utf-8")
+        monkeypatch.setattr(reporting, "git_current_branch", lambda _cwd: "")
+        exit_code = _run("final-report", "--progress-file", str(ppath), "--archive")
+        assert exit_code == 0
+        assert "not-archived" in capsys.readouterr().out
+        assert ppath.exists()
+        assert not (tmp_path / "progress.done.json").exists()
+
 
 # ---------------------------------------------------------------------------
 # snapshot
@@ -3821,6 +3852,64 @@ class TestUnitTestStepStateMerge:
         )
         assert exit_code == 0
         assert _read_progress(ppath)["coverage"]["history"][0]["delta"] == 0
+
+    def test_boolean_coverage_delta_rejected(self, tmp_path, monkeypatch):
+        # bool subclasses int, so `isinstance(delta, (int, float))` accepts a
+        # JSON boolean and stores it verbatim — and `False == 0` is True, which
+        # is exactly what check_coverage_plateau tests. A `false` delta would
+        # fake a plateau on a cycle that actually gained coverage.
+        ppath = _seed_coverage_progress(tmp_path, cycle=1)
+        monkeypatch.setattr(cli, "run_tests", lambda *a, **kw: (True, "ok"))
+        result = tmp_path / "result.json"
+        result.write_text(
+            json.dumps(
+                {
+                    "coverage": {"before": 40, "after": 55, "delta": False},
+                    "tests_written": [],
+                    "untestable_code": [],
+                    "bugs_discovered": [],
+                    "no_new_tests": False,
+                    "no_untestable_code": False,
+                    "no_coverage_gained": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert (
+            _run("unit-test-step", "--progress-file", str(ppath), "--result-file", str(result))
+            == 0
+        )
+        # Derived from before/after, not the boolean.
+        assert _read_progress(ppath)["coverage"]["history"][0]["delta"] == 15
+
+    def test_string_before_after_still_derive_delta(self, tmp_path, monkeypatch):
+        # Coercing only `delta` left the derivation path open: string-typed
+        # before/after failed its isinstance gate, delta stayed None, and a
+        # genuine zero-gain cycle never tripped the plateau check.
+        ppath = _seed_coverage_progress(tmp_path, cycle=1)
+        monkeypatch.setattr(cli, "run_tests", lambda *a, **kw: (True, "ok"))
+        result = tmp_path / "result.json"
+        result.write_text(
+            json.dumps(
+                {
+                    "coverage": {"before": "41.5", "after": "41.5", "delta": None},
+                    "tests_written": [],
+                    "untestable_code": [],
+                    "bugs_discovered": [],
+                    "no_new_tests": False,
+                    "no_untestable_code": False,
+                    "no_coverage_gained": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert (
+            _run("unit-test-step", "--progress-file", str(ppath), "--result-file", str(result))
+            == 0
+        )
+        entry = _read_progress(ppath)["coverage"]["history"][0]
+        assert entry["delta"] == 0
+        assert entry["before"] == 41.5 and entry["after"] == 41.5
 
     def test_untestable_file_path_normalized_on_storage(self, tmp_path, monkeypatch):
         # A unit-test subagent that reports an untestable file with OS-native

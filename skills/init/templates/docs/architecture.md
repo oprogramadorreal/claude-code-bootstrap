@@ -1,10 +1,14 @@
 # Architecture
 
+Sections with nothing project-specific to say should be deleted, not filled with generalities. Every bullet count below is a ceiling, not a target.
+
 ## Overview
 
-[1-2 sentences: high-level architecture pattern — MVC, layered, hexagonal, microservices, etc.; for skill-authoring projects, also what kind (Claude Code plugin, prompt library, agent framework) and its primary purpose]
+[1-2 sentences: the architecture pattern — MVC, layered, hexagonal, microservices, etc.; for skill-authoring projects, also what kind (Claude Code plugin, prompt library, agent framework) and its primary purpose]
 
 ## Directory Map
+
+[Only directories whose purpose is not obvious from the name, or whose contents are generated or owned by another system. Skip the rest — a listing already shows them. Delete this section if nothing qualifies.]
 
 | Directory | Purpose |
 |-----------|---------|
@@ -14,32 +18,18 @@
 
 ## Data Flow
 
-[2-4 bullets or a short description: how requests/data move through the system — entry point → routing → business logic → data layer, or similar]
+[How requests or data actually move through this system — entry point → routing → business logic → data layer, or whatever shape it really has. At most 4 bullets.]
 
 ## Key Patterns
 
-[2-4 bullets: important architectural patterns in use — dependency injection, repository pattern, event-driven, middleware chain, etc.]
+[At most 4 bullets: architectural patterns actually in use here, and why. Skip patterns a reader would infer from the framework.]
 
 ## Dependencies Between Modules
 
-[Brief description of module boundaries and which modules depend on which — helps prevent circular dependencies and maintain separation of concerns]
+[Module boundaries and which modules depend on which — enough to keep a change from introducing a cycle or crossing a layer.]
 
 <!-- Skill Architecture: keep this section only when skill authoring was detected; delete it (and this comment) otherwise -->
 
 ## Skill Architecture
 
-### Skill Organization
-
-[2-4 bullets: how skills/agents/prompts are organized — naming conventions, directory structure, what files each skill directory contains]
-
-### Agent Boundaries
-
-[2-4 bullets: how agent definitions are scoped — shared vs skill-specific, context each agent receives, model assignments]
-
-### Reference Hierarchy
-
-[2-4 bullets: reference structure — maximum depth, shared vs local references, canonical ownership]
-
-### Orchestration Patterns
-
-[2-4 bullets: how skills coordinate multi-step workflows — agent delegation, user interaction points, checkpoint patterns]
+[How instruction files are organized here, only where it is not evident from the directory layout: naming and structure conventions, where agent prompts live and what context they receive, reference depth and canonical ownership, and how multi-step flows coordinate — delegation, user checkpoints, handoffs between skills. At most 6 bullets total; drop any of those topics this project has nothing specific to say about.]

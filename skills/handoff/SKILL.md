@@ -42,9 +42,11 @@ If the conversation has not already established the codebase's current state, br
 
 ## Step 5: Redact, write, verify, report
 
-Scan the entire drafted body — authored prose as much as inlined content — against the **Redaction patterns** table and replace matches with the exact marker `[REDACTED: <kind>]`, preserving structure (e.g. `DATABASE_URL=postgres://app:[REDACTED: password]@db:5432/app`). Only reference lines (paths, SHAs, URLs) are exempt. A file whose name looks like a secret is never inlined with its values, regardless of tracked state — see the table's last two rows.
+Redact as you write: every line of the document — authored prose as much as inlined content — must be clean against the **Redaction patterns** table before it goes to disk, with matches replaced by the exact marker `[REDACTED: <kind>]` and the structure preserved (e.g. `DATABASE_URL=postgres://app:[REDACTED: password]@db:5432/app`). Only reference lines (paths, SHAs, URLs) are exempt. A file whose name looks like a secret is never inlined with its values, regardless of tracked state — see the table's last two rows. This file is destined for `/optimus:commit`, and a leaked credential is not recoverable once it is pushed.
 
-Write the document to `docs/handoffs/<slug>.md`, creating the folder if missing. Re-scan the written file against the same table (same exemption) and fix any hits — the draft and what lands on disk can diverge, and a leaked credential is not recoverable once this file is committed.
+Write the document to `docs/handoffs/<slug>.md`, creating the folder if missing.
+
+Then verify: read the file back from disk and re-scan the full document body against the **Redaction patterns** table (same reference-line exemption), fixing any hit before you report. Redacting as you write is a judgement made once, mid-composition, over a long document; this pass is an independent check of what actually landed, and it is the only thing standing between a missed secret and `/optimus:commit`.
 
 Report the written path. If the resolved root is not itself a git repo — a multi-repo workspace root, or a directory with no recognized structure — note the file is not under version control; suggest committing it inside a child repo or initializing version control at the root. Recommend `/optimus:commit` so the handoff reaches the remote — staying in this conversation, so the context being handed off is captured — and that the resumer point a fresh session at the written file. This skill writes only that one file (`docs/handoffs/<slug>.md`, creating the folder if missing); it never stages, commits, or pushes.
 

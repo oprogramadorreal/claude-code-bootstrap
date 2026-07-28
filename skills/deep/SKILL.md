@@ -126,13 +126,13 @@ Read the target's loop reference — `$CLAUDE_PLUGIN_ROOT/references/orchestrato
 
 Refactor target: when a focus is set, add `Focus: <testability|guidelines>` to the dispatch prompt after the `Phase:` line (the base skill reads `config.focus` from the progress file; the echo makes the intent visible in the run trace).
 
-Coverage target: the paired loop's blocked gate (a non-null `blocked` field from the unit-test phase) exits the loop instead of dispatching further cycles — report the reason with matching recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline).
+Coverage target: the paired loop's blocked gate (a non-null `blocked` field from the unit-test phase) exits the loop instead of dispatching further cycles — record it with `mark-termination --reason blocked` as the loop reference specifies, then report the reason with matching recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline). The run stays resumable: tell the user to re-run with `--resume` once the prerequisite is fixed.
 
 Do not narrate subagent findings in conversation prose — the final report covers them.
 
 ## Step 6: Final Report
 
-After the loop, follow the loop reference's "After the loop" section: `final-report --archive` prints the cumulative report and moves the progress file to `.done.json` so a stray `--resume` cannot pick up a completed run — except on a `diminishing-returns` soft-exit, which stays un-archived and resumable via `--resume`. For a fresh second-opinion pass after a clean finish, re-run `/optimus:deep <target>` without `--resume`.
+After the loop, follow the loop reference's "After the loop" section. For a fresh second-opinion pass after a clean finish, re-run `/optimus:deep <target>` without `--resume`.
 
 ## Important
 

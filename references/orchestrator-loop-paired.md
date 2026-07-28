@@ -9,7 +9,7 @@ Iteration template for `/optimus:deep coverage`. Each **cycle** runs a unit-test
 
 The loop control discipline mirrors `references/orchestrator-loop-single.md` (snapshot before dispatch, slice-only progress reads, subagent output is text not state, don't end a turn on a promise, report only what the CLI confirmed) — see that reference for the rationale. Only the cycle structure differs.
 
-**Plugin root.** As stated in `orchestrator-loop-single.md`: `$CLAUDE_PLUGIN_ROOT` below means the root the orchestrator resolved in its Step 2; Bash-tool environment variables do **not** persist across Bash calls, so if `echo $CLAUDE_PLUGIN_ROOT` reads empty, substitute the resolved absolute path **literally** into every `PYTHONPATH=...` command and into both dispatch prompts in this file.
+**Plugin root.** As in `orchestrator-loop-single.md`: substitute the root the orchestrator resolved in its Step 2 into every command and both dispatch prompts below.
 
 ## Per-cycle body
 
@@ -40,11 +40,10 @@ Agent tool call:
     `<absolute-plugin-root>/references/coverage-harness-mode.md` ("Unit-Test
     Phase Execution" section) exactly. Wherever the base SKILL.md or that
     reference mentions `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin
-    root above — your environment may not export it:
-    - Read the progress file above for prior coverage and untestable items.
-    - Discover gaps, write new tests, measure coverage, flag untestable code.
-    - Emit a single ```json:harness-output fenced block and stop.
-    - Do not use AskUserQuestion. Do not loop.
+    root above — your environment may not export it.
+
+    Do NOT run the full test suite or any `scripts/*.sh` wrapper: the
+    orchestrator owns that run. Coverage measurement is part of the phase.
 ```
 
 ### 3. Save the subagent return + extract JSON
@@ -62,7 +61,14 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli parse \
 
 Passing `--progress-file` lets the CLI track consecutive parse failures across cycles (and across `--resume`); two consecutive failures cause step 11 (`check-termination`) to return `parse-failure` and terminate the loop. The counter is shared across both phases — a refactor parse failure followed by the next cycle's unit-test parse failure counts as two consecutive failures.
 
-**Blocked gate:** if the extracted JSON has a non-null `blocked` field, the unit-test phase hit a stop gate it cannot work past (no test framework, failing baseline — see coverage-harness-mode.md "Stop gates under harness mode"). Do not run `unit-test-step` and do not dispatch further cycles: exit the loop, report the `blocked` reason to the user with the matching base-skill recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline), and proceed to "After the loop".
+**Blocked gate:** if the extracted JSON has a non-null `blocked` field, the unit-test phase hit a stop gate it cannot work past (no test framework, failing baseline — see coverage-harness-mode.md "Stop gates under harness mode"). Do not run `unit-test-step` and do not dispatch further cycles. Record the reason first — without this the final report names no cause at all:
+
+```bash
+PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli mark-termination \
+    --progress-file "<progress-path>" --reason blocked --message "<the blocked text>"
+```
+
+Then exit the loop, report the `blocked` reason to the user with the matching base-skill recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline), and proceed to "After the loop". `blocked` is a resumable soft exit: the prerequisite is one the user can fix, so `final-report --archive` leaves the progress file in place and `--resume` picks the run up afterwards.
 
 ### 4. Record the unit-test phase
 
@@ -128,10 +134,9 @@ Agent tool call:
     `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin root above — your
     environment may not export it. The progress file lists pending untestable
     items under untestable_code; scope the refactor to those files only.
-    Apply fixes. Do NOT run the test command, any `scripts/*.sh`, or any
-    lint/build — the orchestrator owns all test execution. Emit a single
-    ```json:harness-output fenced block and stop.
-    Do not use AskUserQuestion. Do not loop.
+
+    Do NOT run the test command, any `scripts/*.sh`, or any lint/build step:
+    the orchestrator owns all test execution and bisection.
 ```
 
 ### 7. Save the refactor return + extract the refactor JSON
@@ -192,7 +197,7 @@ TERMINATION=$(PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.
     --progress-file "<progress-path>")
 ```
 
-Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above.)
+Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`, `blocked`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above. `blocked` is echoed back here after the unit-test phase records it — see that step.)
 
 ## After the loop
 
@@ -201,7 +206,7 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli final-repo
     --progress-file "<progress-path>" --archive
 ```
 
-`--archive` moves the progress file to its `.done.json` sibling (the `.json` suffix is replaced — e.g. `.claude/unit-test-deep-progress.done.json`) once the run is complete — except on a `diminishing-returns` soft-exit, which the CLI leaves un-archived (prints `not-archived`) so the run stays resumable via `--resume`.
+`--archive` moves the progress file to its `.done.json` sibling (the `.json` suffix is replaced — e.g. `.claude/unit-test-deep-progress.done.json`) once the run is complete — except on a `diminishing-returns` or `blocked` soft-exit, which the CLI leaves un-archived (prints `not-archived`) so the run stays resumable via `--resume`.
 
 ## Per-phase notes
 

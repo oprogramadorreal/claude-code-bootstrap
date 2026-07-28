@@ -28,7 +28,7 @@ When invoked with the `scaffold` argument, or when the user asks to set up the d
 
 If `.claude/CLAUDE.md` or `.claude/docs/coding-guidelines.md` is missing, recommend `/optimus:init` first; on the user's choice, continue with general best practices.
 
-Load `.claude/CLAUDE.md` and `.claude/docs/coding-guidelines.md`, plus — only if present — the steering cascade `docs/product/product-context.md`, `mvp-prd.md`, and `tech-stack.md`. Steering is higher-altitude direction that informs the design, never the task itself or content to copy; the spec stays engineering-focused, with no PM prose (personas, KPIs, business value). Precedence contract: `$CLAUDE_PLUGIN_ROOT/references/sdd-mapping.md`. In a monorepo, load the subproject's own `docs/` files (testing, architecture, styling) and shared guidelines from the root `.claude/docs/`.
+Load `.claude/CLAUDE.md` and `.claude/docs/coding-guidelines.md`, plus — only if present — the steering cascade `docs/product/product-context.md`, `mvp-prd.md`, and `tech-stack.md`. Steering informs the design; it is never the task itself or content to copy. Authoring boundary and precedence: `$CLAUDE_PLUGIN_ROOT/references/sdd-mapping.md`. In a monorepo, load the subproject's own `docs/` files (testing, architecture, styling) and shared guidelines from the root `.claude/docs/`.
 
 If the current directory has no `.git/` directory, read `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` and apply it — operate within the repo the user is targeting; ask which repo if ambiguous.
 
@@ -100,7 +100,7 @@ Write to `docs/specs/YYYY-MM-DD-<topic-slug>.md` (lowercase hyphenated slug from
 - <Deferred decisions — remove if none>
 ```
 
-Self-review the written file for: TODOs or placeholders; internal contradictions; ambiguity that could lead to building the wrong thing; YAGNI violations; scenario discipline (against scenario-style.md's Discipline and Anti-patterns) when Scenarios are present. Fix what you find, but ask the user before any fix that changes a design decision.
+The spec ships with no TODOs or placeholders. If closing a gap would change a design decision the user approved, ask before changing it.
 
 ## Step 6: Report
 
@@ -127,44 +127,9 @@ Route by task type. Substitute the actual spec path into every recommendation an
 
 ### Plan-mode handoff (medium-to-large)
 
-Read `$CLAUDE_PLUGIN_ROOT/skills/brainstorm/references/plan-mode-handoff.md`. Emit a copyable plan-mode prompt pre-filled from the spec:
+Read `$CLAUDE_PLUGIN_ROOT/skills/brainstorm/references/plan-mode-handoff.md` and emit its **Prompt skeleton** as a copyable plan-mode prompt, filled from the spec with `<doc-path>` = `<spec-path>`, and closed with the carve-out's `## How this conversation should run` block.
 
-````
-```
-## Goal
-[Goal from the spec]
-
-## Context
-[Synthesized from the spec's Context and Approach — key decisions, constraints, chosen-approach rationale.]
-
-## Starting Hints
-- Spec: <spec-path>
-- [Key files/modules from Step 3 exploration]
-
-## Scope
-- Focus on: [components from the spec]
-- Out of scope: [from the spec's Out of Scope section]
-
-[Close with the canonical block from plan-mode-handoff.md "Carve-out canonical blocks", substituting <doc-path> = <spec-path>.]
-```
-````
-
-Then tell the user the three carve-out steps from plan-mode-handoff.md (substituting `<doc-path>` = `<spec-path>`), and emit the execution prompt as a second copyable block:
-
-````
-```
-## Goal
-Run /optimus:tdd to implement the refined plan in <spec-path> test-first.
-
-## Starting Hints
-- Spec (with "Refined plan" section): <spec-path>
-- Components: [names from the spec's Components table]
-
-## Scope
-- Focus on: [components from the spec]
-- Out of scope: [from the spec's Out of Scope section]
-```
-````
+Then tell the user the three carve-out steps from that reference, and emit the execution prompt as a second copyable block from the same skeleton.
 
 ### Prose flow
 

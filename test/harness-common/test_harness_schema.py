@@ -211,27 +211,25 @@ def test_no_actionable_fixes_matches_the_findings_it_describes():
 
 
 @pytest.mark.parametrize(
-    "schema_path,doc_path",
+    "schema_path,fixture_path,doc_path",
     [
-        pytest.param(DEEP_SCHEMA, DEEP_DOC, id="deep"),
-        pytest.param(COVERAGE_SCHEMA, COVERAGE_DOC, id="coverage"),
+        pytest.param(DEEP_SCHEMA, DEEP_FIXTURE, DEEP_DOC, id="deep"),
+        pytest.param(COVERAGE_SCHEMA, COVERAGE_FIXTURE, COVERAGE_DOC, id="coverage"),
     ],
 )
-def test_docs_name_every_required_field(schema_path, doc_path):
-    """A field renamed in the schema but not the doc (or vice versa) fails here.
+def test_docs_route_subagents_to_the_schema_and_fixture(schema_path, fixture_path, doc_path):
+    """The doc must send the subagent to the schema and the fixture, by real path.
 
-    The docs show the block a subagent has to emit; the schema defines it. If they
-    disagree, subagents follow the prose and the parser follows neither.
+    The docs used to inline a third copy of the shape, which is why the older
+    version of this test asserted every required field name appeared in the prose.
+    That copy is gone: the schema defines the contract and the fixture shows it.
+    What has to hold now is that the doc actually points at both, and that both
+    paths resolve — a moved or renamed file would otherwise leave the subagent
+    with a pointer to nothing and no shape to emit.
     """
-    schema = _load(schema_path)
     doc = doc_path.read_text(encoding="utf-8")
 
-    required = set(schema["required"])
-    for definition in schema.get("$defs", {}).values():
-        required |= set(definition.get("required", []))
-    for prop in schema["properties"].values():
-        if prop.get("type") == "object":
-            required |= set(prop.get("required", []))
-
-    missing = sorted(name for name in required if f'"{name}"' not in doc)
-    assert not missing, f"{doc_path.name} does not document required fields: {missing}"
+    for target in (schema_path, fixture_path):
+        assert target.exists(), f"{target} does not exist"
+        rel = target.relative_to(REPO_ROOT).as_posix()
+        assert rel in doc, f"{doc_path.name} does not point at {rel}"

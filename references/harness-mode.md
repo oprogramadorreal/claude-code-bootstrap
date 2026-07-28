@@ -52,9 +52,11 @@ Launch all agents in parallel — same agents, same prompts, same parallelism as
 
 ### 4. Validate findings
 
-Apply the same validation protocol as the skill's normal validation step. Independently verify each finding, check for false positives, apply change-intent awareness from git history.
+Apply the same validation protocol as the skill's normal validation step. Independently verify each finding, check for false positives, apply change-intent awareness from git history. One clause of that protocol does not carry over: **do not drop what you could not confirm** — see the gate below.
 
-**Auto-apply gate.** Nothing here gets user review before it lands, so only findings your own validation *confirms* earn a fix in step 6. Still record an unconfirmed finding in `new_findings` with its confidence — it belongs in the report and in the next iteration's context — but emit no `pre_edit_content`/`post_edit_content` pair for it. Agents are told to report rather than pre-filter; this gate, not their silence, is what keeps auto-applied edits honest.
+**Auto-apply gate.** Nothing here gets user review before it lands, so only findings your own validation *confirms* earn a fix in step 6. An unconfirmed finding is still recorded in `new_findings` with its confidence. That is a deliberate override of the base protocol's "a finding you cannot confirm is dropped" rule (`references/finding-validation.md`, and the equivalent line in each skill's validation step): dropping keeps an interactive report tight, but here it also erases the loop's only evidence that the iteration found anything — an iteration whose findings were all unconfirmed would emit `no_new_findings: true` and terminate the entire run as `convergence`, reporting clean. Record it instead, and let the empty edit pair mark it un-fixed.
+
+Emit `pre_edit_content` and `post_edit_content` as **empty strings** for such a finding — not omitted. Both are required by the schema under `additionalProperties: false`, so a finding object missing them is unparseable, and two unparseable iterations end the run as `parse-failure`. An empty `pre_edit_content` is what says "no fix was applied"; step 6's promotion guard skips exactly those. Agents are told to report rather than pre-filter; this gate, not their silence, is what keeps auto-applied edits honest.
 
 ### 5. Consolidate and deduplicate findings
 
@@ -83,37 +85,11 @@ The orchestrator owns all test execution and bisection — running them here wou
 
 ### 8. Output structured JSON
 
-At the end of the response, emit the iteration results in a `json:harness-output` fenced block. `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` is the contract — field names, types, which are required, and what `no_actionable_fixes` means — and `test/harness-common/fixtures/harness-output.golden.json` is a complete worked instance. The shape:
+At the end of the response, emit the iteration results in one `json:harness-output` fenced block.
 
-````
-```json:harness-output
-{
-  "iteration": <number>,
-  "new_findings": [
-    {
-      "file": "<path>",
-      "line": <number>,
-      "end_line": <number>,
-      "category": "<category from the agent finding — skill-specific>",
-      "guideline": "<specific rule or 'General: ...'>",
-      "summary": "<one-sentence, max 120 chars>",
-      "fix_description": "<brief description of the fix applied>",
-      "severity": "<Critical | Warning | Suggestion>",
-      "confidence": "<High | Medium | Low>",
-      "agent": "<agent-name>",
-      "pre_edit_content": "<exact original code>",
-      "post_edit_content": "<exact replacement code>"
-    }
-  ],
-  "fixes_applied": [
-    <same structure as new_findings — the subset that were actually applied via Edit/MultiEdit>
-  ],
-  "fixes_skipped_persistent": ["<id of findings skipped due to persistent status>"],
-  "no_new_findings": <true if zero new findings discovered>,
-  "no_actionable_fixes": <true only when no finding captured a swap pair — see the schema>
-}
-```
-````
+Read `$CLAUDE_PLUGIN_ROOT/references/schemas/harness-output.schema.json` — it is the contract, and it carries field names, types, which fields are required, the enums, and what `no_actionable_fixes` means. `$CLAUDE_PLUGIN_ROOT/test/harness-common/fixtures/harness-output.golden.json` is a complete worked instance to copy the shape from.
+
+The one thing the schema cannot state: `category` values are skill-specific — use the category the agent that raised the finding assigned it.
 
 ### 9. Exit
 
@@ -129,3 +105,4 @@ The orchestrator may record one of these reasons on exit:
 - **`diminishing-returns`** — yield plateaued at ≤1 new finding for two consecutive iterations ending at iter 4 or later, with no reverted fixes in either window iteration; remaining issues may exist and can be resumed via `--resume`
 - **`cap`** — max iterations hit
 - **`parse-failure`** — subagent error (after two consecutive iterations produced no parseable JSON)
+- **`blocked`** — coverage target only: the unit-test phase hit a stop gate it cannot work past (no test framework, red baseline). Like `diminishing-returns` it is a resumable soft exit — the orchestrator records it before leaving the loop, and the progress file is left un-archived so `--resume` works once the user clears the prerequisite

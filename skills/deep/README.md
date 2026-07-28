@@ -34,10 +34,10 @@ Natural-language scope text is recorded as intent but does not filter — only a
 
 ## Termination, resume, and archive
 
-The run ends with a cumulative report naming a termination reason — the six reasons are documented in [`references/harness-mode.md`](../../references/harness-mode.md).
+The run ends with a cumulative report naming a termination reason — the seven reasons are documented in [`references/harness-mode.md`](../../references/harness-mode.md).
 
 - A finished run is archived to the progress file's `.done.json` sibling; `--resume` refuses it — re-run fresh for a second-opinion pass.
-- A `diminishing-returns` soft-exit stays un-archived so `--resume` can continue it; `--resume` can also raise the cap.
+- The two soft exits — `diminishing-returns`, and `blocked` on the coverage target — stay un-archived so `--resume` can continue them; `--resume` can also raise the cap.
 - Press Esc twice to interrupt. Progress is written before every dispatch, so interrupts between dispatches are fully recoverable via `--resume`; a mid-dispatch interrupt may leave partial edits — inspect with `git status`, then discard with `git restore .` **and** `git clean -fd -e .claude/` (tracked edits plus any new untracked files the subagent created — a fresh run's init gate counts both, and `-e .claude/` preserves the progress files) or `--resume` to keep them. In projects configured by `/optimus:permissions`, that skill's deny list blocks Claude from running `git clean` — run the command yourself in a separate terminal there.
 
 Progress files: `.claude/code-review-deep-progress.json`, `.claude/refactor-deep-progress.json`, `.claude/unit-test-deep-progress.json`.

@@ -166,7 +166,7 @@ CURRENT_WORK_DIR=""
 trap 'if [ -n "$CURRENT_WORK_DIR" ] && [ -d "$CURRENT_WORK_DIR" ]; then rm -rf "$CURRENT_WORK_DIR"; fi' EXIT INT TERM
 
 # System prompt that makes skills non-interactive
-NONINTERACTIVE_PROMPT="IMPORTANT: Do NOT use the AskUserQuestion tool under any circumstances. For every decision point where the skill instructs you to ask the user, always choose the default or most common option and continue automatically. Never stop to ask for confirmation — just proceed. If the skill presents options like 'Fresh start' vs 'Update', choose 'Fresh start'. If asked about scope, choose 'Full project'. If asked about approval, approve all."
+NONINTERACTIVE_PROMPT="Run non-interactively: never call AskUserQuestion. Where the skill would put a choice to the user, take the option it marks as the default (or the first one listed) and continue."
 
 run_skill_test() {
   local skill="$1"

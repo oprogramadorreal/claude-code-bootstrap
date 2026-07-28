@@ -22,7 +22,7 @@ Report each finding in this exact shape. Every agent uses `Current:`/`Suggested:
 
 - **File:** file:line
 - **Category:** [agent-specific — see your prompt file]
-- **Confidence:** High | Medium
+- **Confidence:** High | Medium | Low — Low means you could not confirm the evidence yourself. Use it; do not round up to Medium and do not drop the finding. Step 6 validation promotes or drops it.
 - **Guideline:** [exact project-doc rule, "General: <domain>", or for Intent Mismatch the literal `Intent (see Intent claim)`]
 - **Intent claim:** [Intent Mismatch only — the quoted claim from `## Intent`]
 - **Issue:** [concrete description]
@@ -41,25 +41,14 @@ When a PR/MR Context Block is present in your prompt **and** the description inc
 - A code change that contradicts a stated non-goal (e.g., Non-goals says "no schema migration in this PR" but the diff adds a migration file).
 - An implementation delivering the wrong shape of the claim (e.g., Intent says "validate email format" but the code only checks for a non-empty string).
 
-**Confidence:** High — the claim is specific and testable and the diff clearly does not deliver it (or contradicts it); Medium — the claim is approximate or only partially delivered.
+**Confidence:** High — the claim is specific and testable and the diff clearly does not deliver it (or contradicts it); Medium — the claim is approximate or only partially delivered; Low — you could not confirm whether the diff delivers it.
 
 **Severity** (agents with a Severity field): Critical — a stated non-goal is contradicted; Warning — a stated scope claim has no supporting code; Suggestion — partial match.
 
 **Skip silently** when: there is no populated `## Intent` section — **never invent intent** from the Summary, commit messages, or diff; the claim is ambiguous or aspirational (e.g., "improve performance" with no metric) — omit rather than flag; or the claim is already satisfied elsewhere in the codebase — verify with Grep/Read before flagging.
 
-**Budget:** Intent Mismatch findings do not count against the 15-finding cap — up to **+5 per agent per pass** (canonical rule: `$CLAUDE_PLUGIN_ROOT/references/shared-agent-constraints.md` "Finding Cap").
+**Budget:** Intent Mismatch findings do not count against the base 15-finding cap — up to **+5 per agent per pass**. This is the composing category the base Finding Cap allows for.
 
 **Fix the code, never the PR description.** A suggested fix MUST edit code (or tests, or config — anything that ships in the diff) to deliver the stated intent. Never propose updating the PR description to match the code — that silently rewrites the author's stated intent and defeats the check, and the harness auto-applies emitted fixes, so a description fix would destroy the intent record. If you are confident the intent itself is wrong, write in `Suggested:` that *"the author should reconsider the stated intent"* instead.
 
-## Agent lanes
-
-Each agent reports Intent Mismatch findings only within its own domain:
-
-| Agent | Lane (claims about…) |
-|-------|----------------------|
-| bug-detector | behavior/correctness — "validates input", "handles null", "no behavior change" |
-| security-reviewer | security — "rotated tokens on logout", "requires admin role", boundary validation, abuse prevention |
-| guideline-reviewer | patterns/conventions — "follows repository pattern", "uses standard error shape", architectural boundaries |
-| test-guardian | test coverage — "tests for the new flow", "covers edge case X", test non-goals |
-| contracts-reviewer | API/contracts — "preserves backwards compat", "no public API change", versioning/deprecation |
-| code-simplifier | *does not run the check* |
+**Lane.** Report Intent Mismatch findings only for claims inside the lane your own prompt names, and leave claims outside it to the agent that owns them. An agent whose prompt names no lane does not run this check.

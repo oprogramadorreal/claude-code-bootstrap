@@ -51,6 +51,7 @@ from .constants import (
     MAX_ITERATIONS_HARD_CAP,
     PERSISTENT_STATUS,
     PHASE_COMMIT_TYPE,
+    RESUMABLE_TERMINATIONS,
     SCRATCH_GLOBS,
     SKILL_COMMIT_TYPE,
     SOFT_EXIT_LOW_YIELD_THRESHOLD,
@@ -1136,6 +1137,43 @@ def cmd_deep_step(args):
     return 0
 
 
+def _finite_number(value):
+    """Coerce a subagent-supplied coverage scalar to a finite number, or None.
+
+    Everything check_coverage_plateau does rests on `delta == 0`, so a value
+    that is stored but not comparable to 0 silently defeats the
+    diminishing-returns net. Three ways that happens, all seen from real
+    subagent output:
+
+    - `bool` is excluded FIRST, because `isinstance(True, int)` is True in
+      Python. A JSON `false` sails through an int/float check untouched, and
+      `False == 0` is True — two such cycles end a run on a plateau that never
+      happened, while `true` never equals 0 and defeats the net outright.
+    - A numeric-looking string ("41.5", "0%") is coerced; anything else
+      becomes None so the caller can derive the value instead.
+    - NaN/Infinity — json.loads accepts the literals and float() accepts
+      "nan" — never compare == 0, so they are dropped too.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        # A Python int is arbitrary-precision and therefore always finite, so
+        # there is nothing here to test. Testing it anyway is what broke:
+        # math.isfinite() converts to float first, and json.loads produces an
+        # int of any size from a long enough literal — so a subagent emitting
+        # `{"coverage": {"before": <400 digits>}}` raised OverflowError out of
+        # cmd_unit_test_step, straight through main()'s bare
+        # `return args.func(args)`, and killed the cycle this coercion exists
+        # to protect.
+        return value
+    if not isinstance(value, float):
+        try:
+            value = float(str(value).strip().rstrip("%"))
+        except (TypeError, ValueError):
+            return None
+    return value if math.isfinite(value) else None
+
+
 def cmd_unit_test_step(args):
     """Process the unit-test phase of a coverage-target cycle.
 
@@ -1178,28 +1216,15 @@ def cmd_unit_test_step(args):
     cov = result.get("coverage") or {}
     if cov.get("tool"):
         progress["coverage"]["tool"] = cov["tool"]
-    before = cov.get("before")
-    after = cov.get("after")
-    delta = cov.get("delta")
-    if delta is not None and not isinstance(delta, (int, float)):
-        # A string-typed delta ("0", "0%") stored verbatim never satisfies
-        # check_coverage_plateau's `delta == 0`, silently defeating the
-        # diminishing-returns net — coerce numeric-looking strings and drop
-        # anything else into the before/after derivation below.
-        try:
-            delta = float(str(delta).strip().rstrip("%"))
-        except (TypeError, ValueError):
-            delta = None
-    if isinstance(delta, float) and not math.isfinite(delta):
-        # json.loads lets NaN/Infinity literals through and the coercion above
-        # accepts "nan"; a non-finite delta never compares == 0, which would
-        # defeat the plateau net — drop it into the before/after derivation.
-        delta = None
-    if (
-        delta is None
-        and isinstance(before, (int, float))
-        and isinstance(after, (int, float))
-    ):
+    # All three go through the same coercion. Coercing only `delta` left the
+    # derivation path below wide open: a subagent that scraped its coverage
+    # numbers out of tool output emits `{"before": "41.5", "after": "41.5",
+    # "delta": null}`, no derivation fires, and the genuine zero-gain cycle
+    # stays invisible to check_coverage_plateau.
+    before = _finite_number(cov.get("before"))
+    after = _finite_number(cov.get("after"))
+    delta = _finite_number(cov.get("delta"))
+    if delta is None and before is not None and after is not None:
         # check_coverage_plateau compares delta == 0; derive it from before/after
         # when the subagent omitted (or null-set) it so a genuine zero-gain cycle
         # still trips the diminishing-returns net rather than running to the cap.
@@ -1682,14 +1707,14 @@ def cmd_final_report(args):
     else:
         print_deep_report(progress)
     if args.archive:
-        # diminishing-returns is a soft, resumable exit — the termination message
-        # tells the user to --resume. Archiving renames the progress file to
-        # .done.json, which cmd_resume then refuses, breaking the advertised
-        # --resume. Leave the active progress file in place so the run continues.
+        # A soft, resumable exit — the termination message tells the user to
+        # --resume. Archiving renames the progress file to .done.json, which
+        # cmd_resume then refuses, breaking the advertised --resume. Leave the
+        # active progress file in place so the run continues.
         reason = (progress.get("termination") or {}).get("reason")
-        if reason == "diminishing-returns":
+        if reason in RESUMABLE_TERMINATIONS:
             print(
-                "not-archived: run left resumable (diminishing-returns). Re-run "
+                f"not-archived: run left resumable ({reason}). Re-run "
                 "with --resume to continue, or delete the progress file to discard."
             )
             return 0
@@ -1880,6 +1905,7 @@ def _build_parser():
             "diminishing-returns",
             "cap",
             "parse-failure",
+            "blocked",
         ],
         help="Termination reason to record in progress[termination]",
     )
