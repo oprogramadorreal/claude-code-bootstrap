@@ -403,9 +403,19 @@ fi
 echo "[Plugin agents]"
 agent_issues=""
 agent_count=0
-# Glob the tree, not a hardcoded list: a new agent is validated automatically
-# instead of shipping unvalidated when the list goes stale (skills get the
-# same treatment in section 12 via ./skills/*/).
+# Two assertions, and both are needed. The named list is the only thing that
+# checks these files EXIST: replacing it with a bare glob left `agent_count`
+# at 1 when one of the two was deleted, so validation stayed green while the
+# plugin shipped without its user-invocable optimus:test-guardian subagent and
+# skills/init/README.md's relative link 404'd. Nothing else pins them — check 8
+# only validates $CLAUDE_PLUGIN_ROOT paths, and check 9 only flags files that
+# are already there.
+for agent_file in agents/code-simplifier.md agents/test-guardian.md; do
+  [ -f "$agent_file" ] || agent_issues+="  $agent_file: missing (required plugin agent)\n"
+done
+# The glob then validates the CONTENT of every agent, named or not, so a new one
+# is checked automatically instead of shipping unvalidated when the list above
+# goes stale (skills get the same treatment in section 12 via ./skills/*/).
 for agent_file in agents/*.md; do
   [ -e "$agent_file" ] || continue
   agent_count=$((agent_count + 1))
