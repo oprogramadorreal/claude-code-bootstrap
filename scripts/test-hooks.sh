@@ -922,11 +922,116 @@ assert_decision "sudo-wrapped push to protected branch denied" DENY \
 assert_decision "grep for an rm pattern allowed" ALLOW \
   "$(rp_decision Bash command "grep -r \\\"rm -rf\\\" $rp_tmp/proj")"
 
-# A '.bak' suffix must not launder a file off the hard precious list. These run
+# A shell invoked with -c carries its whole command inside ONE argument, so no
+# walk over the fragment's tokens can reach it — the wrapper list is the wrong
+# tool for the job and adding sh/bash to it would not have helped. One `sh -c`
+# used to switch BOTH guards off at once.
+assert_decision "sh -c rm outside project denied" DENY \
+  "$(rp_decision Bash command "sh -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+assert_decision "bash -c rm outside project denied" DENY \
+  "$(rp_decision Bash command "bash -c \\\"rm $rp_tmp/outside/a.txt\\\"")"
+assert_decision "eval rm outside project denied" DENY \
+  "$(rp_decision Bash command "eval rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo sh -c rm outside project denied" DENY \
+  "$(rp_decision Bash command "sudo sh -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+assert_decision "sh -ec bundled flag denied" DENY \
+  "$(rp_decision Bash command "sh -ec \\\"rm $rp_tmp/outside/a.txt\\\"")"
+assert_decision "sh -c push to protected branch denied" DENY \
+  "$(rp_git_decision 'sh -c \"git push origin master\"')"
+# A non-flag argument to a shell is a SCRIPT PATH, not a command string, and an
+# `echo` of one is neither — unwrapping either would be a false block.
+assert_decision "bash <script> is not unwrapped" ALLOW \
+  "$(rp_decision Bash command 'bash scripts/build.sh')"
+assert_decision "echo of an sh -c string allowed" ALLOW \
+  "$(rp_decision Bash command "echo sh -c \\\"rm $rp_tmp/outside/a.txt\\\"")"
+assert_decision "sh -c rm inside project allowed" ALLOW \
+  "$(rp_decision Bash command "sh -c \\\"rm $rp_tmp/proj/src/a.txt\\\"")"
+
+# A redirection names a stream. Counted as a delete target it produced an
+# unappealable deny on `rm <in-project> > /dev/null`; counted as a refspec it
+# gave `git push` two positionals, so the guard checked '/dev/null' against the
+# protected list instead of resolving the current branch.
+assert_decision "rm with a spaced redirect allowed" ALLOW \
+  "$(rp_decision Bash command "rm -rf $rp_tmp/proj/src/a.txt > /dev/null")"
+assert_decision "rm with a glued redirect allowed" ALLOW \
+  "$(rp_decision Bash command "rm -rf $rp_tmp/proj/src/a.txt >/dev/null")"
+assert_decision "rm with an fd redirect allowed" ALLOW \
+  "$(rp_decision Bash command "rm -rf $rp_tmp/proj/src/a.txt 2>/dev/null")"
+assert_decision "rm with an append redirect allowed" ALLOW \
+  "$(rp_decision Bash command "rm -rf $rp_tmp/proj/src/a.txt >> $rp_tmp/proj/log.txt")"
+assert_decision "redirect does not excuse an outside rm" DENY \
+  "$(rp_decision Bash command "rm -rf $rp_tmp/outside/a.txt > /dev/null")"
+assert_decision "push with a spaced redirect denied"  DENY "$(rp_git_decision 'git push > /dev/null')"
+assert_decision "push remote + spaced redirect denied" DENY "$(rp_git_decision 'git push origin > /dev/null')"
+assert_decision "push with a glued redirect denied"   DENY "$(rp_git_decision 'git push >/dev/null')"
+assert_decision "push --quiet + redirect denied"      DENY "$(rp_git_decision 'git push --quiet > /dev/null')"
+
+# A relative delete target means "relative to the chain's cd", not to whatever
+# directory the hook happens to run in. Resolved against the latter, every one
+# of these read as an IN-project delete while the shell removed a file outside.
+assert_decision "cd outside then relative rm denied" DENY \
+  "$(rp_decision Bash command "cd $rp_tmp/outside && rm a.txt")"
+assert_decision "cd outside then rm '.' denied" DENY \
+  "$(rp_decision Bash command "cd $rp_tmp/outside && rm -rf .")"
+assert_decision "subshell cd then relative rm denied" DENY \
+  "$(rp_decision Bash command "(cd $rp_tmp/outside; rm a.txt)")"
+assert_decision "cd in-project then relative rm allowed" ALLOW \
+  "$(rp_decision Bash command "cd $rp_tmp/proj/src && rm a.txt")"
+# As rp_decision, but with the PROJECT directory as CWD — which is how Claude
+# Code invokes the hook, and the only setting in which a relative path in a
+# command resolves to what the shell would actually act on. rp_decision inherits
+# the suite's own CWD, so every relative path there lands outside the fixture
+# project and denies for a reason that has nothing to do with the guard.
+rp_decision_cwd() { # $1=command -> ALLOW | ASK | DENY | OTHER
+  (cd "$rp_tmp/proj" && rp_decision Bash command "$1")
+}
+assert_decision "relative rm with no cd stays allowed" ALLOW \
+  "$(rp_decision_cwd 'rm -rf build/out')"
+
+# A variable this hook cannot see is a path it cannot judge. A caller's shell
+# variable is not exported, so substituting the empty string collapsed the word
+# to a leading '/', which every gate then read as an absolute path outside the
+# project — a hard deny, with no prompt and no override, on ordinary
+# build-directory cleanup.
+assert_decision "unset var delete target allowed" ALLOW \
+  "$(rp_decision_cwd 'RP_UNSET_DIR=build && rm -rf $RP_UNSET_DIR/x')"
+assert_decision "unset braced var allowed" ALLOW \
+  "$(rp_decision_cwd 'rm -rf ${RP_UNSET_DIR}/dist')"
+assert_decision "unset var with a glob allowed" ALLOW \
+  "$(rp_decision_cwd 'rm -rf $RP_UNSET_DIR/*')"
+assert_decision "unset var inside a loop allowed" ALLOW \
+  "$(rp_decision_cwd 'for d in a b; do rm -rf $d/tmp; done')"
+# An EXPORTED name is one the hook can see, so it must still expand — that is
+# the hole the literal fallback must not reopen.
+assert_decision "\$HOME still expands to a denied path" DENY \
+  "$(rp_decision_cwd 'rm -rf $HOME/.ssh/id_rsa')"
+
+# Deleting a protected branch was blocked; MOVING one was not, though it loses
+# exactly as much. `git update-ref` does it with no branch subcommand at all,
+# and works even on the checked-out branch, where `git branch -f` refuses.
+assert_decision "branch -f onto protected denied"   DENY  "$(rp_git_decision 'git branch -f master HEAD~1')"
+assert_decision "branch --force onto protected denied" DENY "$(rp_git_decision 'git branch --force master HEAD~1')"
+assert_decision "branch -M rename onto protected denied" DENY "$(rp_git_decision 'git branch -M feature-x master')"
+assert_decision "branch -m rename onto protected denied" DENY "$(rp_git_decision 'git branch -m feature-x master')"
+assert_decision "update-ref on protected denied"    DENY  "$(rp_git_decision 'git update-ref refs/heads/master HEAD')"
+# A start-point is READ, not written — creating a feature branch off master is
+# the single most ordinary thing this rule could have broken.
+assert_decision "branch -f feature FROM master allowed" ALLOW \
+  "$(rp_git_decision 'git branch -f feature-x master')"
+assert_decision "branch -f feature alone allowed"   ALLOW "$(rp_git_decision 'git branch -f feature-x')"
+assert_decision "update-ref on feature allowed"     ALLOW "$(rp_git_decision 'git update-ref refs/heads/feature-x HEAD')"
+assert_decision "update-ref --stdin fails open"     ALLOW "$(rp_git_decision 'git update-ref --stdin')"
+# Read-only flags that merely contain an f/m/M must not read as a force.
+assert_decision "branch --list is not a rewrite"    ALLOW "$(rp_git_decision 'git branch --list')"
+assert_decision "branch -a is not a rewrite"        ALLOW "$(rp_git_decision 'git branch -a')"
+assert_decision "branch --format is not a force"    ALLOW "$(rp_git_decision 'git branch --format=%(refname)')"
+assert_decision "branch --merged is not a move"     ALLOW "$(rp_git_decision 'git branch --merged')"
+
+# A backup suffix must not launder a file off the hard precious list. These run
 # against is_precious_name directly: the delete gate needs an untracked file to
 # exist in a git repo, and the classification is what a regression would break.
 rp_precious_name() { # $1=basename -> PRECIOUS | RECOVERABLE | ORDINARY
-  rp_drive_fn "" is_precious_name,is_recoverable_precious \
+  rp_drive_fn "" strip_backup_suffix,is_precious_name,basename_of,precious_basename,is_recoverable_precious,is_recoverable_precious_name \
     'if is_precious_name "$1"; then echo PRECIOUS
      elif is_recoverable_precious "$1"; then echo RECOVERABLE
      else echo ORDINARY; fi' "$1"
@@ -936,6 +1041,20 @@ assert_decision ".env.bak stays precious"       PRECIOUS    "$(rp_precious_name 
 assert_decision "id_rsa.pem.bak stays precious" PRECIOUS    "$(rp_precious_name 'id_rsa.pem.bak')"
 assert_decision "app.sqlite.bak stays precious" PRECIOUS    "$(rp_precious_name 'app.sqlite.bak')"
 assert_decision "credentials.json.bak stays precious" PRECIOUS "$(rp_precious_name 'credentials.json.bak')"
+# '.bak' was never the only laundering suffix — every one of these strips a
+# suffix-anchored pattern ('*.key', '*.pem', '*.sqlite', '*.dump') off the hard
+# list just as effectively, and re-testing the stem for '.bak' alone closed one
+# instance of the trick rather than the trick.
+assert_decision "id_rsa.pem.old stays precious"    PRECIOUS "$(rp_precious_name 'id_rsa.pem.old')"
+assert_decision "server.key.backup stays precious" PRECIOUS "$(rp_precious_name 'server.key.backup')"
+assert_decision "server.key.1 stays precious"      PRECIOUS "$(rp_precious_name 'server.key.1')"
+assert_decision "db.sqlite~ stays precious"        PRECIOUS "$(rp_precious_name 'db.sqlite~')"
+assert_decision "app.sqlite.orig stays precious"   PRECIOUS "$(rp_precious_name 'app.sqlite.orig')"
+assert_decision "prod.dump.save stays precious"    PRECIOUS "$(rp_precious_name 'prod.dump.save')"
+assert_decision "keystore.jks.backup stays precious" PRECIOUS "$(rp_precious_name 'keystore.jks.backup')"
+assert_decision "appsettings.dev.json.old stays precious" PRECIOUS \
+  "$(rp_precious_name 'appsettings.dev.json.old')"
+assert_decision "stacked suffixes stay precious" PRECIOUS "$(rp_precious_name 'id_rsa.pem.old.bak')"
 # The reason the recoverable class exists: a deny goes to Claude, not the user,
 # so an ordinary backup must stay deletable — including the harness's own.
 assert_decision "notes.txt.bak is recoverable"  RECOVERABLE "$(rp_precious_name 'notes.txt.bak')"
@@ -943,6 +1062,15 @@ assert_decision "harness progress .bak is recoverable" RECOVERABLE \
   "$(rp_precious_name 'code-review-deep-progress.json.bak')"
 assert_decision "*.suo is recoverable"          RECOVERABLE "$(rp_precious_name 'proj.suo')"
 assert_decision "notes.txt is ordinary"         ORDINARY    "$(rp_precious_name 'notes.txt')"
+# The wider suffix set belongs to is_precious_name ONLY. Widening the recoverable
+# trigger list to match would start prompting before every overwrite of a rotated
+# log or a merge leftover — files with nothing precious about them.
+assert_decision "notes.txt.old is ordinary"     ORDINARY    "$(rp_precious_name 'notes.txt.old')"
+assert_decision "access.log.1 is ordinary"      ORDINARY    "$(rp_precious_name 'access.log.1')"
+assert_decision "main.py.orig is ordinary"      ORDINARY    "$(rp_precious_name 'main.py.orig')"
+# A name that is nothing BUT a suffix must terminate the strip/re-test recursion.
+assert_decision "bare '.bak' terminates"        RECOVERABLE "$(rp_precious_name '.bak')"
+assert_decision "bare '~' terminates"           ORDINARY    "$(rp_precious_name '~')"
 
 echo "[restrict-paths: path normalization]"
 # EXACTLY two leading slashes are a UNC network root on MSYS/Cygwin, but plain
@@ -1222,6 +1350,31 @@ rp_ee_status=$?
 set -e
 assert_decision "Out-of-project write still decides under errexit" ASK "$(rp_classify "$rp_ee_out")"
 assert_exit_zero "Hook exits 0 under errexit" "$rp_ee_status"
+
+# The Write path alone is not enough, and covering only it is how a regression
+# scored green. EVERY Bash guard runs through shell_split, whose counters start
+# at 0 — and `(( i++ ))` evaluating to 0 returns exit status 1, so under errexit
+# the hook aborts on the FIRST character of the FIRST fragment, before any
+# decision is printed. Both hard blocks then silently stop existing, and only a
+# Bash-side case can see it.
+rp_ee_bash() { # $1=command $2=project dir -> ALLOW | ASK | DENY | OTHER | CRASH
+  local out status
+  set +e
+  out=$(rp_json Bash command "$1" \
+    | env HOME="$rp_tmp/home" CLAUDE_PROJECT_DIR="$2" bash -e "$RESTRICT" 2>/dev/null)
+  status=$?
+  set -e
+  [ "$status" -eq 0 ] || { echo "CRASH"; return; }
+  rp_classify "$out"
+}
+assert_decision "Push to protected branch decides under errexit" DENY \
+  "$(rp_ee_bash 'git push origin master' "$rp_git")"
+assert_decision "Out-of-project rm decides under errexit" DENY \
+  "$(rp_ee_bash "rm -rf $rp_tmp/outside/a.txt" "$rp_tmp/proj")"
+assert_decision "In-project rm stays silent under errexit" ALLOW \
+  "$(rp_ee_bash "rm -rf $rp_tmp/proj/src/a.txt" "$rp_tmp/proj")"
+assert_decision "Escaped word decides under errexit" DENY \
+  "$(rp_ee_bash "rm -rf \\\\$rp_tmp/outside/a.txt" "$rp_tmp/proj")"
 
 # ============================================================
 # Summary

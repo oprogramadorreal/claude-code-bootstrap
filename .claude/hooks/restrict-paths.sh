@@ -5,7 +5,7 @@
 # Source:       https://github.com/oprogramadorreal/optimus-claude
 # Docs:         skills/permissions/README.md
 # ============================================================================
-# HOOK_VERSION: 6
+# HOOK_VERSION: 7
 # ^ Bump on every behavioural change. The plugin's SessionStart hook compares
 #   this against the copy installed in a project and recommends re-running
 #   /optimus:permissions when the project's copy is older — a plugin update
@@ -134,21 +134,40 @@
 # COMMAND PARSING:
 #   A Bash tool call arrives as ONE string that may hold many commands. Both
 #   Bash-side guards (delete protection, git branch protection) work on it in
-#   three stages, each of which exists because skipping it turned the guard off
+#   four stages, each of which exists because skipping it turned the guard off
 #   for an ordinary spelling rather than an exotic one:
 #     1. Split on the shell's command operators — '&&', '||', ';', '|', '&' and
 #        newline — then peel any leading keyword ('do ', 'then ', '{ ') the split
 #        left at the front of a fragment.
 #     2. shell_split() each fragment into words, honouring quotes and escapes and
-#        expanding '~' / $VAR, so a gate compares the path the shell will act on
-#        rather than the characters as typed.
+#        expanding '~' and every SET $VAR, so a gate compares the path the shell
+#        will act on rather than the characters as typed. A name this hook cannot
+#        see (a caller's shell variable is not exported) stays literal — see
+#        expand_word.
 #     3. cmd_word_index() locates the fragment's command word THROUGH a wrapper
 #        prefix (sudo, command, env VAR=val, xargs and its flags, /bin/rm, \rm),
 #        and stops at the first token that is a real command — so an argument
 #        that merely reads 'rm' is never mistaken for one.
+#     4. `sh -c <string>`, `bash -c <string>` and `eval` carry a whole command
+#        inside a single ARGUMENT, which stage 3 can never reach. unwrap_shell_c()
+#        pulls the string out and feeds it back through stage 1, depth-bounded.
+#   Two things a fragment's words are NOT: a redirection operator or its target
+#   ('> /dev/null' is a stream, not a file to delete or a refspec to push), and a
+#   relative path meaning what it says — a target is resolved against the chain's
+#   own `cd` first, so `cd /etc && rm passwd` is judged as /etc/passwd.
 #   Not covered, by design: command substitution (`rm $(cat list)`) and
 #   `find -exec`, where the delete is not the fragment's own command. This is a
 #   guardrail against accidents, not a sandbox against a determined bypass.
+#
+#   Known false positive, and deliberately kept: stage 1 splits on operators
+#   BEFORE stage 2 parses quotes, so an operator INSIDE a quoted argument
+#   (`echo "a; rm /etc/passwd"`) leaves a fragment that reads as a real command,
+#   and it is denied. Stage 4 inherits the same wart — a mangled fragment
+#   beginning `eval` gets unwrapped too. Quote-aware splitting would remove it,
+#   and would also turn today's denies into silent allows: that same mangling is
+#   the only reason `sh -c "cd /etc; rm passwd"` is caught, since the payload
+#   reaches stage 4 as `cd /etc` and the delete arrives as its own fragment.
+#   An over-eager prompt is recoverable; a missed delete is not.
 #
 # TO DISABLE OR REMOVE:
 #   1. Delete this file: rm .claude/hooks/restrict-paths.sh
@@ -206,13 +225,47 @@ is_git_tracked() {
   git -C "$repo_root" ls-files --error-unmatch "$filepath" &>/dev/null
 }
 
-is_precious() {
-  local lname
-  lname="$(basename "$1")"
+# basename without the fork. The precious tests below run on EVERY Edit, Write
+# and NotebookEdit, so a `$(basename ...)` here is a subshell on the hook's
+# hottest path — and the `basename | tr` pipeline this replaces measured ~109 ms
+# per call on Windows, where nothing else on that path forks at all.
+_basename=""
+basename_of() {
+  local p="$1"
+  while [[ "$p" == */ && "$p" != "/" ]]; do p="${p%/}"; done
+  _basename="${p##*/}"
+}
+
+# Case-fold ONCE, here, and hand the folded basename to both list tests. Folding
+# separately inside each let the two disagree about the same file: this rule is
+# platform-gated, and the recoverable test used to fold unconditionally, so on
+# Linux 'NOTES.TXT.BAK' was recoverable to one entry point and unknown to the other.
+precious_basename() {
+  basename_of "$1"
   # Case-insensitive matching for Windows (NTFS) and macOS (APFS)
-  [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == darwin* ]] && lname="${lname,,}"
+  [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == darwin* ]] && _basename="${_basename,,}"
+}
+
+is_precious() {
+  precious_basename "$1"
+  local lname="$_basename"
   is_precious_name "$lname" && return 0
-  is_recoverable_precious "$1"
+  is_recoverable_precious_name "$lname"
+}
+
+# Strip ONE trailing backup or rotation suffix from a name. Result in _stripped;
+# returns 1 when the name carries none. Shared by is_precious_name so the whole
+# CLASS of backup suffixes is closed rather than one instance of it.
+_stripped=""
+strip_backup_suffix() {
+  local n="$1"
+  case "$n" in
+    *'~') _stripped="${n%\~}"; return 0 ;;
+    *.bak|*.backup|*.old|*.orig|*.save|*.saved|*.copy|*.prev) _stripped="${n%.*}"; return 0 ;;
+    # Rotation: 'server.key.1', 'db.sqlite.02', 'prod.dump.003'.
+    *.[0-9]|*.[0-9][0-9]|*.[0-9][0-9][0-9]) _stripped="${n%.*}"; return 0 ;;
+  esac
+  return 1
 }
 
 # The hard list, matched on a basename the caller has already case-folded.
@@ -239,13 +292,15 @@ is_precious_name() {
     # Database dumps
     *.dump|*.sql.gz) return 0 ;;
   esac
-  # A '.bak' copy holds exactly what it copied, so re-test the stem against the
+  # A backup copy holds exactly what it copied, so re-test the stem against the
   # same list. Without this, only the PREFIX patterns above ('.env*',
-  # 'credentials.*') survived the suffix — 'id_rsa.pem.bak' and 'app.sqlite.bak'
-  # matched nothing, and appending '.bak' laundered them off the list. Each hop
-  # strips one suffix, so the recursion is bounded by the name's length.
-  if [[ "$lname" == *.bak ]]; then
-    is_precious_name "${lname%.bak}"
+  # 'credentials.*') survived an appended suffix — 'id_rsa.pem.bak',
+  # 'server.key.old' and 'app.sqlite~' matched nothing, and the suffix laundered
+  # them off the list. Re-testing only '.bak' closed one instance of that and
+  # left '.old', '.orig', '.backup', '~' and '.1' doing the same job. Each hop
+  # strips at least one character, so the recursion is bounded by the name.
+  if strip_backup_suffix "$lname"; then
+    is_precious_name "$_stripped"
     return $?
   fi
   return 1
@@ -257,7 +312,18 @@ is_precious_name() {
 # files a cleanup step legitimately removes (the harness writes
 # .claude/<skill>-deep-progress.json.bak on every run).
 is_recoverable_precious() {
-  local lname; lname="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
+  precious_basename "$1"
+  is_recoverable_precious_name "$_basename"
+}
+
+# Matched on a basename the caller has already case-folded, like is_precious_name.
+# The trigger list stays deliberately narrower than strip_backup_suffix: this one
+# also decides which ORDINARY files prompt before an overwrite, so widening it to
+# every rotation suffix would start prompting on 'access.log.1' and 'main.py.orig'.
+# Laundering is closed in is_precious_name instead, where the wider set can only
+# ever ADD protection.
+is_recoverable_precious_name() {
+  local lname="$1"
   case "$lname" in
     *.suo|*.user) return 0 ;;
     *.bak)
@@ -639,7 +705,7 @@ shell_split() {
         # Inside double quotes a backslash escapes only these four.
         d="${s:i+1:1}"
         case "$d" in
-          '"'|'\'|'$'|'`') cur+="$d"; (( i++ )) ;;
+          '"'|'\'|'$'|'`') cur+="$d"; (( ++i )) ;;
           *) cur+="$c" ;;
         esac
       else
@@ -648,21 +714,27 @@ shell_split() {
     else
       case "$c" in
         "'"|'"') q="$c"; started=1 ;;
-        '\') cur+="${s:i+1:1}"; (( i++ )); started=1 ;;
+        '\') cur+="${s:i+1:1}"; (( ++i )); started=1 ;;
         ' '|$'\t'|$'\n')
           if [[ -n "$started" ]]; then _words+=("$cur"); cur=""; started=""; fi
           ;;
         *) cur+="$c"; started=1 ;;
       esac
     fi
-    (( i++ ))
+    # PRE-increment, throughout. `(( i++ ))` evaluates to the OLD value, so on
+    # the first pass it evaluates to 0 — and an arithmetic command whose result
+    # is 0 returns exit status 1. Under an inherited errexit that aborts the
+    # hook on the very first character of the very first fragment, before any
+    # decision is emitted: both Bash-side guards silently stop existing. `++i`
+    # increments identically and can never evaluate to 0 here.
+    (( ++i ))
   done
   [[ -n "$started" ]] && _words+=("$cur")
   local _i=0
   while (( _i < ${#_words[@]} )); do
     expand_word "${_words[_i]}"
     _words[_i]="$_expanded"
-    (( _i++ ))
+    (( ++_i ))
   done
   return 0
 }
@@ -701,11 +773,23 @@ expand_word() {
       done
       literal="\$$name"
     fi
-    # Only a plain identifier is resolved. '$(...)', '$1', '${x:-y}' and the
-    # like stay literal — reading them needs an eval this hook will not run, and
-    # a word the hook leaves literal is still checked, just as written.
-    if [[ "$name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-      out+="${!name-}"
+    # Only a plain identifier that is actually SET in this hook's environment is
+    # resolved. '$(...)', '$1', '${x:-y}' and the like stay literal — reading
+    # them needs an eval this hook will not run, and a word the hook leaves
+    # literal is still checked, just as written.
+    #
+    # The set-test is load-bearing. A shell variable assigned in the CALLER
+    # (`BUILD_DIR=build && rm -rf $BUILD_DIR/x`) is not exported, so the hook
+    # never sees it — substituting "" collapsed the word to '/x', which every
+    # gate then read as an absolute path outside the project and HARD DENIED.
+    # A deny goes to the model with no prompt and no override, so ordinary
+    # build-dir cleanup became impossible. Leaving the word literal instead
+    # matches the file's fail-open rule (see header: FAIL-OPEN DESIGN): a name
+    # this hook cannot resolve is a path it cannot judge. Exported and
+    # environment variables — $HOME above all — are still expanded, so
+    # `rm $HOME/.ssh/id_rsa` stays blocked.
+    if [[ "$name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && -n "${!name+set}" ]]; then
+      out+="${!name}"
     else
       out+="$literal"
     fi
@@ -726,6 +810,12 @@ expand_word() {
 # token that is a real command, so `git commit -m "rm the old file"` can never
 # be read as a delete.
 #
+# `sh -c <string>`, `bash -c <string>` and `eval <words>` are NOT wrappers in
+# this sense and must not be added to the list below: their payload is a whole
+# command string inside a single argument, not a token of this fragment, so no
+# walk over these tokens can reach it. unwrap_shell_c() handles them instead, by
+# handing the string back to the fragment splitter.
+#
 # Known limits, both pre-existing: a command reached through `find -exec` or a
 # command substitution (`rm $(cat list)`) is not seen, because neither is a
 # wrapper prefix — the fragment's command is `find` / the outer command.
@@ -743,6 +833,63 @@ cmd_word_index() {
     case "$tok" in
       sudo|doas|command|builtin|exec|env|nohup|nice|ionice|stdbuf|time|timeout|xargs) ;;
       -*|*=*|'{}'|'%'|[0-9]*) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 1
+}
+
+# Recognize a redirection token. A redirection names a STREAM, never a path the
+# command acts on or a refspec it pushes, and both spellings have to be caught:
+# a lone operator ('rm x > /dev/null', 'git push > /dev/null') leaves its target
+# in the NEXT word, while a glued one ('>/dev/null', '2>&1') carries it in the
+# same word. Left unhandled, the first spelling made '/dev/null' look like a
+# delete target — an unappealable deny on one of the most ordinary shell idioms
+# there is — and made 'git push' look like it named an explicit refspec, which
+# skipped the current-branch resolution and walked straight past the protected
+# branch check. Sets _redir_takes_arg when the caller must also skip the next word.
+_redir_takes_arg=""
+is_redirection() {
+  _redir_takes_arg=""
+  local w="$1"
+  # Drop a leading fd number ('2>', '10>&1') before matching the operator.
+  w="${w#"${w%%[!0-9]*}"}"
+  case "$w" in
+    '>'|'>>'|'<'|'<<'|'<<<'|'>&'|'<&'|'<>'|'&>'|'&>>') _redir_takes_arg=1; return 0 ;;
+    '>'*|'<'*|'&>'*) return 0 ;;
+  esac
+  return 1
+}
+
+# Extract the command string carried inside `sh -c <string>` / `bash -c <string>`
+# (through any wrapper prefix) or concatenated after `eval`. Result in _unwrapped.
+#
+# Without this, one wrapper turned BOTH Bash-side guards off at once:
+# `sh -c "rm -rf /etc"`, `eval rm /etc/passwd` and `bash -c "git push origin
+# master"` all emitted nothing at all. The inner string is a single shell WORD to
+# this fragment, so the only way to check it is to split it as a command in its
+# own right — which is what the caller does with the result.
+_unwrapped=""
+unwrap_shell_c() {
+  local -a t=("$@")
+  cmd_word_index 'sh|bash|dash|ksh|zsh|eval' "${t[@]}" || return 1
+  local base="${t[_cmd_idx]#\\}"; base="${base##*/}"
+  local i _oldifs
+  if [[ "$base" == eval ]]; then
+    # `eval a b c` joins its words with a space and runs the result.
+    (( ${#t[@]} > _cmd_idx + 1 )) || return 1
+    _oldifs="$IFS"; IFS=' '; _unwrapped="${t[*]:$((_cmd_idx + 1))}"; IFS="$_oldifs"
+    [[ -n "$_unwrapped" ]] || return 1
+    return 0
+  fi
+  # A shell's command string is the argument after -c, which may be bundled with
+  # other short flags ('sh -ec', 'bash -lc').
+  for ((i=_cmd_idx + 1; i<${#t[@]}; i++)); do
+    case "${t[i]}" in
+      -*c) _unwrapped="${t[i+1]:-}"; [[ -n "$_unwrapped" ]] && return 0; return 1 ;;
+      -*) ;;
+      # A non-flag argument is a SCRIPT PATH ('bash scripts/build.sh'), not a
+      # command string — nothing to unwrap.
       *) return 1 ;;
     esac
   done
@@ -809,21 +956,31 @@ check_git_push() {
   # Separate flags from positional args
   local -a positional=()
   local has_delete=false
-  local i=1
+  local i=1 skip_next=""
   while (( i <= $# )); do
     local arg="${!i}"
+    if [[ -n "$skip_next" ]]; then skip_next=""; i=$(( i + 1 )); continue; fi
+    # A redirection is not a refspec. Counted as one, `git push > /dev/null`
+    # reached the branch resolution below with TWO positionals, so it took the
+    # 'git push <remote> <refspec>' path and checked '/dev/null' against the
+    # protected list instead of resolving the current branch — a push to master
+    # one space away from unguarded.
+    if is_redirection "$arg"; then
+      skip_next="$_redir_takes_arg"
+      i=$(( i + 1 )); continue
+    fi
     case "$arg" in
       -d|--delete) has_delete=true ;;
       -f|--force|--force-with-lease*|--force-if-includes) ;;
       -u|--set-upstream|--no-verify|--dry-run|-n|--verbose|-v|--quiet|-q) ;;
       --atomic|--signed*|--no-signed|--thin|--no-thin|--tags|--prune) ;;
       --progress|--no-progress|--porcelain|--no-recurse-submodules) ;;
-      --push-option|-o|--repo|--receive-pack|--exec) ((i++)) ;;
+      --push-option|-o|--repo|--receive-pack|--exec) skip_next=1 ;;
       --push-option=*|-o*|--repo=*) ;;
       -*) ;; # unknown flag, skip (fail-open)
       *) positional+=("$arg") ;;
     esac
-    ((i++))
+    i=$(( i + 1 ))
   done
 
   # Determine target branch(es)
@@ -890,8 +1047,8 @@ check_git_command() {
   local i
   for ((i=1; i<${#tokens[@]}; i++)); do
     case "${tokens[i]}" in
-      -C) git_dir="${tokens[i+1]:-}"; ((i++)) ;;            # capture -C target dir
-      -c|--git-dir|--work-tree|--namespace) ((i++)) ;;      # skip flag + its argument
+      -C) git_dir="${tokens[i+1]:-}"; (( ++i )) ;;          # capture -C target dir
+      -c|--git-dir|--work-tree|--namespace) (( ++i )) ;;    # skip flag + its argument
       --git-dir=*|--work-tree=*|--namespace=*) ;;            # skip =form (no extra arg)
       -*) ;;                                                  # skip other flags
       *) git_subcmd="${tokens[i]}"; git_subcmd_idx=$i; break ;;
@@ -1003,19 +1160,202 @@ check_git_command() {
       return 0
       ;;
     branch)
-      # Block deletion of protected branches: -d/-D (also bundled with other
-      # short flags, e.g. -Df), --delete, or --force-delete flag
-      [[ "$git_portion" =~ \ -[a-zA-Z]*[dD][a-zA-Z]*(\ |$)|\ --delete(\ |$)|\ --force-delete(\ |$) ]] || return 0
-      # Check ALL non-flag arguments (git branch -d accepts multiple branch names)
+      # Two destructive shapes, not one. Keying on the delete flags alone left
+      # `git branch -f master HEAD~3` and `git branch -M feat master` free to
+      # rewrite a protected branch's pointer — the same loss as a delete, and
+      # the one way to do it that the Bash tool never had to ask about.
+      #   delete:  -d/-D (also bundled with other short flags, e.g. -Df),
+      #            --delete, --force-delete
+      #   rewrite: -f/--force (force-create over an existing name), -m/-M/--move
+      #            (rename onto one)
+      local branch_op=""
+      if [[ "$git_portion" =~ \ -[a-zA-Z]*[dD][a-zA-Z]*(\ |$)|\ --delete(\ |$)|\ --force-delete(\ |$) ]]; then
+        branch_op=delete
+      elif [[ "$git_portion" =~ \ -[a-zA-Z]*[fmM][a-zA-Z]*(\ |$)|\ --force(\ |$)|\ --move(\ |$) ]]; then
+        branch_op=rewrite
+      fi
+      [[ -n "$branch_op" ]] || return 0
+      # Check ALL non-flag arguments (git branch -d accepts multiple branch
+      # names, and a rename's OLD name matters as much as its new one).
       local bi
+      local -a bnames=()
       for ((bi=git_subcmd_idx+1; bi<${#tokens[@]}; bi++)); do
         [[ "${tokens[bi]}" == -* ]] && continue
-        if is_protected_branch "${tokens[bi]}"; then
-          deny_operation "BLOCKED: Cannot delete protected branch '${tokens[bi]}'."
+        bnames+=("${tokens[bi]}")
+      done
+      # `git branch -f <name> <start-point>` writes only <name>; the start-point
+      # is READ. Without this, creating an ordinary feature branch off master
+      # ('git branch -f feature master') would be denied.
+      if [[ "$branch_op" == rewrite && ! "$git_portion" =~ \ -[a-zA-Z]*[mM][a-zA-Z]*(\ |$)|\ --move(\ |$) ]]; then
+        (( ${#bnames[@]} > 1 )) && bnames=("${bnames[0]}")
+      fi
+      local bname
+      for bname in ${bnames[@]+"${bnames[@]}"}; do
+        bname="${bname#refs/heads/}"
+        if is_protected_branch "$bname"; then
+          if [[ "$branch_op" == delete ]]; then
+            deny_operation "BLOCKED: Cannot delete protected branch '$bname'."
+          fi
+          deny_operation "BLOCKED: 'git branch' would rewrite protected branch '$bname'. Use a feature branch instead."
         fi
       done
       ;;
+    update-ref)
+      # `git update-ref refs/heads/master <sha>` moves a branch pointer with no
+      # branch subcommand in sight — and it works even on the CHECKED-OUT
+      # branch, where 'git branch -f' refuses. Same destruction, different door.
+      local ui uref=""
+      for ((ui=git_subcmd_idx+1; ui<${#tokens[@]}; ui++)); do
+        case "${tokens[ui]}" in
+          # --stdin takes the refs on stdin, which this hook cannot read: nothing
+          # to check, so fail open as everywhere else.
+          --stdin) return 0 ;;
+          -m) (( ++ui )) ;;   # reflog message + its argument
+          -*) ;;
+          *) uref="${tokens[ui]}"; break ;;
+        esac
+      done
+      [[ -n "$uref" ]] || return 0
+      if is_protected_branch "${uref#refs/heads/}"; then
+        deny_operation "BLOCKED: 'git update-ref' would rewrite protected branch '${uref#refs/heads/}'."
+      fi
+      ;;
   esac
+  return 0
+}
+
+# --- Command scanning (see header: COMMAND PARSING) ---
+# Walk ONE command string: split it on the shell's operators, then run both
+# Bash-side guards over every fragment. Recurses, depth-bounded, into the command
+# string carried by `sh -c` / `bash -c` / `eval`.
+#
+# 'cd <dir>' targets are tracked here because two guards need them: git context
+# in multi-repo workspaces, where Claude Code writes "cd <repo> && git ...", and
+# the base a RELATIVE delete target resolves against. _cd_dir is deliberately a
+# global — a cd persists across the operator that follows it, and into a nested
+# `sh -c`, exactly as it does for the shell.
+_cd_dir=""
+_scan_depth=0
+scan_command_string() {
+  local _split="$1"
+  local _subcmd _cd_tok word target nword skip_next
+  local -a _frag
+
+  # Pure bash, and '&' is one of the operators. The `sed 's/&&/\n/g; ...'` this
+  # replaces emitted no newline for a LONE '&', so `true & rm <outside>` stayed
+  # a single fragment that no anchored guard matched — both hard blocks were
+  # one background operator away from being no-ops. (It also relied on GNU
+  # sed's \n in a replacement, which inserts a literal 'n' on macOS/BSD, and
+  # forked a process per command.)
+  _split="${_split//&&/$'\n'}"
+  _split="${_split//||/$'\n'}"
+  _split="${_split//;/$'\n'}"
+  _split="${_split//|/$'\n'}"
+  _split="${_split//&/$'\n'}"
+
+  while IFS= read -r _subcmd; do
+    _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"  # trim leading whitespace
+    _subcmd="${_subcmd#\(}"                              # strip leading subshell paren
+    _subcmd="${_subcmd%\)}"                              # strip trailing subshell paren
+
+    # Peel leading shell keywords. `for f in *; do rm <outside>; done` splits
+    # into a fragment beginning 'do rm ...' and `if x; then rm <outside>; fi`
+    # into one beginning 'then rm ...' — neither of which the guards below saw,
+    # so a loop or an if was enough to walk both of them past an unwanted delete
+    # and past the protected-branch check.
+    while :; do
+      case "$_subcmd" in
+        do|then|else|elif|fi|done|esac|in|'{'|'}'|'!') _subcmd="" ;;
+        do\ *|then\ *|else\ *|elif\ *|if\ *|while\ *|until\ *|'{'\ *|'!'\ *)
+          _subcmd="${_subcmd#* }" ;;
+        *) break ;;
+      esac
+      _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"
+      [[ -n "$_subcmd" ]] || break
+    done
+    [[ -n "$_subcmd" ]] || continue
+
+    # One quote-aware split per fragment, shared by all the gates below.
+    shell_split "$_subcmd"
+    (( ${#_words[@]} )) || continue
+    _frag=("${_words[@]}")
+
+    # Track 'cd <dir>' to resolve context for subsequent commands
+    if [[ "${_frag[0]}" == cd ]]; then
+      for _cd_tok in "${_frag[@]:1}"; do
+        [[ "$_cd_tok" == -* ]] && continue
+        _cd_dir="$_cd_tok"
+        break
+      done
+      continue
+    fi
+
+    # `sh -c <string>` / `bash -c <string>` / `eval <words>` carry a whole
+    # command inside ONE argument, which no walk over these tokens can reach —
+    # so a single wrapper switched BOTH guards off at once. Hand the string back
+    # to this function instead. Depth-bounded so a self-referential command
+    # (`sh -c "sh -c ..."`) cannot spin, and shallow because real commands nest
+    # once, if at all.
+    if unwrap_shell_c "${_frag[@]}"; then
+      if (( _scan_depth < 4 )); then
+        _scan_depth=$(( _scan_depth + 1 ))
+        scan_command_string "$_unwrapped"
+        _scan_depth=$(( _scan_depth - 1 ))
+      fi
+      continue
+    fi
+
+    # Git branch protection (feature branches allowed, protected branches blocked)
+    check_git_command "$_cd_dir" "${_frag[@]}"
+
+    # Delete protection (rm/rmdir outside project or precious unversioned).
+    # cmd_word_index sees through wrapper prefixes — a pipe hands the post-'|'
+    # fragment here on its own, so `find ... | xargs -n 1 rm <path>` and
+    # `sudo rm <path>` have to be recognized as deletes just like a bare `rm`.
+    if cmd_word_index 'rm|rmdir' "${_frag[@]}"; then
+      skip_next=""
+      for word in "${_frag[@]:$((_cmd_idx + 1))}"; do
+        if [[ -n "$skip_next" ]]; then skip_next=""; continue; fi
+        # Flags, and the placeholder/terminator tokens of an xargs or find
+        # invocation — none of them name a file.
+        case "$word" in -*|'{}'|'+'|';'|'') continue ;; esac
+        # Neither does a redirection: `rm <in-project> > /dev/null` was denied
+        # for deleting '/dev/null', with no prompt and no way to override it.
+        if is_redirection "$word"; then skip_next="$_redir_takes_arg"; continue; fi
+        # Resolve a RELATIVE target against the chain's `cd`, not against this
+        # hook's own working directory. `cd /etc && rm passwd` otherwise
+        # normalized to <project>/passwd and read as an IN-project delete, while
+        # the shell removed /etc/passwd — the tracked cd was right there, it
+        # just never reached this gate. A relative cd resolves against the
+        # project root, as it does in resolve_git_context.
+        target="$word"
+        if [[ -n "$_cd_dir" ]] && ! is_absolute_path "$target"; then
+          if is_absolute_path "$_cd_dir"; then
+            target="$_cd_dir/$target"
+          else
+            target="$root/$_cd_dir/$target"
+          fi
+        fi
+        # Claude's own auto-memory store and session scratchpad are writable AND
+        # prunable by design, so deletes there are allowed like writes — via the
+        # SAME ladder the write gate uses. Everything else outside the project
+        # root is hard-blocked. Normalize once and reuse: the two gates below
+        # would otherwise resolve the same word twice, two forks apiece.
+        nword="$(normalize "$target")"
+        if ! is_exempt_out_of_project_n "$nword"; then
+          deny_operation "BLOCKED: Cannot delete '$word' — outside project root."
+        fi
+        # Precious file protection: block deletion of sensitive unversioned files.
+        # Recoverable ones (backups, IDE scratch) are excluded — see
+        # is_recoverable_precious: a deny here could never be overridden.
+        if [[ -e "$target" ]] && is_inside_project_n "$nword" \
+           && is_precious "$target" && ! is_recoverable_precious "$target" \
+           && ! is_git_tracked "$target"; then
+          deny_operation "BLOCKED: '$(basename "$word")' is a precious file not tracked by git. Deletion denied."
+        fi
+      done
+    fi
+  done <<< "$_split"
   return 0
 }
 
@@ -1067,91 +1407,11 @@ case "$tool_name" in
     cmd="${cmd//$'\001'/\\}"
 
     # --- Git branch protection + Delete protection ---
-    # Split command on shell operators and check each sub-command. This handles
-    # chained commands like "cd /repo && git commit" and "cd /tmp && rm file".
-    # Tracks 'cd <dir>' targets to resolve git context in multi-repo workspaces
-    # where Claude Code uses "cd <repo> && git ..." patterns.
-    #
-    # Pure bash, and '&' is one of the operators. The `sed 's/&&/\n/g; ...'` this
-    # replaces emitted no newline for a LONE '&', so `true & rm <outside>` stayed
-    # a single fragment that no anchored guard matched — both hard blocks were
-    # one background operator away from being no-ops. (It also relied on GNU
-    # sed's \n in a replacement, which inserts a literal 'n' on macOS/BSD, and
-    # forked a process per command.)
-    _split="$cmd"
-    _split="${_split//&&/$'\n'}"
-    _split="${_split//||/$'\n'}"
-    _split="${_split//;/$'\n'}"
-    _split="${_split//|/$'\n'}"
-    _split="${_split//&/$'\n'}"
-    _cd_dir=""
-    while IFS= read -r _subcmd; do
-      _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"  # trim leading whitespace
-      _subcmd="${_subcmd#\(}"                              # strip leading subshell paren
-      _subcmd="${_subcmd%\)}"                              # strip trailing subshell paren
-
-      # Peel leading shell keywords. `for f in *; do rm <outside>; done` splits
-      # into a fragment beginning 'do rm ...' and `if x; then rm <outside>; fi`
-      # into one beginning 'then rm ...' — neither of which the guards below saw,
-      # so a loop or an if was enough to walk both of them past an unwanted delete
-      # and past the protected-branch check.
-      while :; do
-        case "$_subcmd" in
-          do|then|else|elif|fi|done|esac|in|'{'|'}'|'!') _subcmd="" ;;
-          do\ *|then\ *|else\ *|elif\ *|if\ *|while\ *|until\ *|'{'\ *|'!'\ *)
-            _subcmd="${_subcmd#* }" ;;
-          *) break ;;
-        esac
-        _subcmd="${_subcmd#"${_subcmd%%[![:space:]]*}"}"
-        [[ -n "$_subcmd" ]] || break
-      done
-      [[ -n "$_subcmd" ]] || continue
-
-      # One quote-aware split per fragment, shared by all three gates below.
-      shell_split "$_subcmd"
-      (( ${#_words[@]} )) || continue
-      _frag=("${_words[@]}")
-
-      # Track 'cd <dir>' to resolve context for subsequent commands
-      if [[ "${_frag[0]}" == cd ]]; then
-        for _cd_tok in "${_frag[@]:1}"; do
-          [[ "$_cd_tok" == -* ]] && continue
-          _cd_dir="$_cd_tok"
-          break
-        done
-        continue
-      fi
-
-      # Git branch protection (feature branches allowed, protected branches blocked)
-      check_git_command "$_cd_dir" "${_frag[@]}"
-
-      # Delete protection (rm/rmdir outside project or precious unversioned).
-      # cmd_word_index sees through wrapper prefixes — a pipe hands the post-'|'
-      # fragment here on its own, so `find ... | xargs -n 1 rm <path>` and
-      # `sudo rm <path>` have to be recognized as deletes just like a bare `rm`.
-      if cmd_word_index 'rm|rmdir' "${_frag[@]}"; then
-        for word in "${_frag[@]:$((_cmd_idx + 1))}"; do
-          # Flags, and the placeholder/terminator tokens of an xargs or find
-          # invocation — none of them name a file.
-          case "$word" in -*|'{}'|'+'|';'|'') continue ;; esac
-          # Claude's own auto-memory store and session scratchpad are writable AND
-          # prunable by design, so deletes there are allowed like writes — via the
-          # SAME ladder the write gate uses. Everything else outside the project
-          # root is hard-blocked. Normalize once and reuse: the two gates below
-          # would otherwise resolve the same word twice, two forks apiece.
-          _nword="$(normalize "$word")"
-          if ! is_exempt_out_of_project_n "$_nword"; then
-            deny_operation "BLOCKED: Cannot delete '$word' — outside project root."
-          fi
-          # Precious file protection: block deletion of sensitive unversioned files.
-          # Recoverable ones (backups, IDE scratch) are excluded — see
-          # is_recoverable_precious: a deny here could never be overridden.
-          if [[ -e "$word" ]] && is_inside_project_n "$_nword" && is_precious "$word"              && ! is_recoverable_precious "$word" && ! is_git_tracked "$word"; then
-            deny_operation "BLOCKED: '$(basename "$word")' is a precious file not tracked by git. Deletion denied."
-          fi
-        done
-      fi
-    done <<< "$_split"
+    # Both live in scan_command_string, which splits the string on the shell's
+    # operators and checks each fragment — so chained commands like
+    # "cd /repo && git commit" and "cd /tmp && rm file" are covered, as is a
+    # command nested inside `sh -c`.
+    scan_command_string "$cmd"
     exit 0
     ;;
   *)
