@@ -1156,7 +1156,17 @@ def _finite_number(value):
     """
     if value is None or isinstance(value, bool):
         return None
-    if not isinstance(value, (int, float)):
+    if isinstance(value, int):
+        # A Python int is arbitrary-precision and therefore always finite, so
+        # there is nothing here to test. Testing it anyway is what broke:
+        # math.isfinite() converts to float first, and json.loads produces an
+        # int of any size from a long enough literal — so a subagent emitting
+        # `{"coverage": {"before": <400 digits>}}` raised OverflowError out of
+        # cmd_unit_test_step, straight through main()'s bare
+        # `return args.func(args)`, and killed the cycle this coercion exists
+        # to protect.
+        return value
+    if not isinstance(value, float):
         try:
             value = float(str(value).strip().rstrip("%"))
         except (TypeError, ValueError):
