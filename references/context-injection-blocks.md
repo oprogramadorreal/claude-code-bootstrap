@@ -14,11 +14,9 @@ When the skill is reviewing a PR/MR and a `pr-description` was captured during s
 **Description:**
 [captured PR/MR body, truncated to first 2000 characters if longer — append "(truncated)" if truncated]
 
-Use this to understand the author's stated intent behind the changes. However:
-- Still flag genuine bugs, security issues, and guideline violations even if the description says the change is intentional
-- The description explains "why" but does not excuse "how" — incorrect implementations of a correct intent are still findings
-- Do NOT reduce confidence or skip findings just because the description mentions them
-- If the description includes a `## Intent` section with specific claims (problem, scope, non-goals, key decisions) AND your output format includes the `Intent Mismatch` category (see your per-agent PR/MR-mode addendum), check whether the diff delivers each claim. A claim with no supporting code change, or a code change that contradicts a stated non-goal, is a finding — report it under category `Intent Mismatch`. Agents without a PR/MR-mode addendum (e.g., `code-simplifier`) skip this check entirely. If no `## Intent` section is present, skip this check; never invent intent.
+This is the author's stated intent, not ground truth. It explains "why" and never excuses "how": a description calling a change intentional does not retire a bug, a security issue, or a guideline violation, and does not lower a finding's confidence.
+
+If it carries a populated `## Intent` section and your prompt defines the `Intent Mismatch` category, run that check as your addendum specifies.
 ```
 
 If the PR/MR has no description (empty body), omit this block entirely — do not inject an empty context section.
@@ -41,6 +39,7 @@ When the skill is running under `HARNESS_MODE_INLINE` and the progress file's `i
 [one row per finding from accumulated-findings]
 
 Status values:
+- **discovered** — reported by an agent, no fix attempted yet
 - **fixed** — applied and tests passed
 - **retained — revert failed** — fix broke tests but the revert failed; left in place (treat as fixed)
 - **reverted — test failure** — applied but caused a test failure, reverted
@@ -48,10 +47,10 @@ Status values:
 - **skipped — apply failed** — the fix's content swap did not apply cleanly, skipped
 - **persistent — fix failed** — fix attempted multiple times, still failing
 
-[if any findings have a reverted, skipped, or persistent status (any status other than fixed / retained — revert failed), append this section:]
+[if any findings carry one of exactly these four statuses — reverted — test failure, reverted — attempt 2, skipped — apply failed, persistent — fix failed — append this section. The list is exhaustive on purpose: a catch-all ("anything not fixed") swept in **discovered**, a finding nobody has attempted, and rendered it here as a failed attempt with both fields empty — steering the next iteration away from the straightforward fix.]
 
 ### Failed Fix Attempts
-[one bullet per reverted/skipped/persistent finding — omit for fixed and retained findings]
+[one bullet per reverted/skipped/persistent finding — omit for discovered, fixed and retained findings]
 - **<file>:<line>** (<category>): Tried: <fix_description>. Failed: <last_failure_hint>
 
 [If fix_description is empty, write "Tried: (no description)". If last_failure_hint is empty, write "Failed: (no test output captured)".]
@@ -60,5 +59,4 @@ Focus your review on NEW issues only. Do NOT re-flag code that was introduced by
 
 ```
 
-**Summary column**: one sentence, max 120 characters, describing the issue (not the fix).
-**Failed Fix Attempts section**: only included when there are reverted, skipped, or persistent findings. Kept compact — one line per finding with truncated test output (max ~200 chars). This gives the next iteration enough signal to try a different approach without bloating context.
+**Summary column**: one sentence, max 120 characters, describing the issue (not the fix). Failed-fix bullets stay compact — truncate test output to ~200 chars.

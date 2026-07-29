@@ -4,10 +4,6 @@
 
 [One-line description]. Built with [TECH STACK].
 
-## Conventions
-
-[2-5 bullets: key architectural patterns, naming conventions, important entry points, and any non-obvious project-specific rules discovered from existing docs or code structure]
-
 ## Commands
 
 ```bash
@@ -16,18 +12,22 @@
 [lint command]       # Lint source files
 ```
 
-## Project Structure
-
-- `[source dir]/` — [description]
-- `[tests dir]/` — [description]
-
-## Before Writing Code
-
-ALWAYS read `.claude/docs/coding-guidelines.md` before planning or implementing any changes to code files. All code must follow these principles.
-
-<!-- If skill authoring was detected, init adds a second sentence here: "For changes to markdown instruction files (under skills/, agents/, prompts/, commands/, or instructions/), ALWAYS read `.claude/docs/skill-writing-guidelines.md` instead — those files follow different quality rules than code." -->
-
 ## Documentation
 
-<!-- Only list docs that were actually created; coding-guidelines and skill-writing-guidelines are covered above -->
+Read the doc that matches the change — not all of them.
 
+| Changing | Read first |
+|---|---|
+| Code | `.claude/docs/coding-guidelines.md` |
+
+<!-- init adds one row per doc it actually created. When skill authoring was detected, it also adds:
+| A skill, agent, prompt, or command (markdown instruction files) | `.claude/docs/skill-writing-guidelines.md` | -->
+
+## Gotchas
+
+[At most 5 bullets — a ceiling, not a target. Only things that would bite someone who guessed
+right about everything else: an invariant a script or CI depends on, a command that must run from
+a specific directory, a file that looks editable but is generated, a convention the code
+deliberately violates in one place, setup that fails in a non-obvious way, a dependency pinned for
+a reason. Skip anything a directory listing, the manifest, or reading one file would reveal.
+Write none and delete this section rather than filler.]

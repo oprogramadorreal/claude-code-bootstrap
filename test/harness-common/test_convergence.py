@@ -46,10 +46,66 @@ class TestCheckUnitTestConvergence:
         converged, reason = check_unit_test_convergence(output)
         assert converged is False
 
+    # These flags come off untrusted subagent JSON and decide whether the run
+    # STOPS. Nothing coerces types at the parse boundary, and a subagent emits
+    # the string "false" as readily as the literal — read raw it is truthy, so
+    # the run terminated on cycle 1 reporting a plateau that never happened.
+    def test_string_false_does_not_converge(self):
+        output = {
+            "no_new_tests": "false",
+            "no_untestable_code": "false",
+            "no_coverage_gained": "false",
+        }
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+        assert reason is None
+
+    def test_string_true_converges(self):
+        output = {"no_new_tests": "true", "no_untestable_code": "TRUE"}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is True
+
+    # Strict about false, generous about true. A true spelling the reader fails
+    # to recognize costs the whole remaining cycle cap, and costs it invisibly —
+    # termination.reason comes back "max_cycles" with nothing to say a
+    # convergence signal arrived and was dropped. `1` and `"1"` converged before
+    # the string guard was added, so rejecting them was a silent regression.
+    def test_integer_one_converges(self):
+        output = {"no_new_tests": 1, "no_untestable_code": 1}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is True
+
+    def test_integer_zero_does_not_converge(self):
+        output = {"no_new_tests": 0, "no_untestable_code": 0}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
+    def test_alternate_true_spellings_converge(self):
+        for spelling in ("1", "on", "y", "t", "Yes", " TRUE "):
+            output = {"no_new_tests": spelling, "no_untestable_code": spelling}
+            converged, _ = check_unit_test_convergence(output)
+            assert converged is True, spelling
+
+    def test_unrecognized_flag_keeps_going(self):
+        output = {"no_new_tests": ["yes"], "no_untestable_code": {"v": True}}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
+    def test_none_keeps_going(self):
+        output = {"no_new_tests": None, "no_untestable_code": None}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
 
 class TestCheckRefactorConvergence:
     def test_no_convergence(self):
         output = {"no_new_findings": False, "no_actionable_fixes": False}
+        converged, reason = check_refactor_convergence(output)
+        assert converged is False
+        assert reason is None
+
+    def test_string_false_does_not_converge(self):
+        output = {"no_new_findings": "false", "no_actionable_fixes": "false"}
         converged, reason = check_refactor_convergence(output)
         assert converged is False
         assert reason is None

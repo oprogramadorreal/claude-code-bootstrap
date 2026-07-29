@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/oprogramadorreal/optimus-claude/references/schemas/harness-output.schema.json",
+  "title": "Harness output (review / refactor variant)",
+  "description": "The object a base skill emits inside a ```json:harness-output fenced block when running under HARNESS_MODE_INLINE for the review or refactor deep target. Parsed by scripts/harness_common/parser.py. This schema is the contract; references/harness-mode.md step 8 shows it in context.",
+  "type": "object",
+  "required": [
+    "iteration",
+    "new_findings",
+    "fixes_applied",
+    "fixes_skipped_persistent",
+    "no_new_findings",
+    "no_actionable_fixes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "iteration": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The iteration this output belongs to, copied from iteration.current in the progress file."
+    },
+    "new_findings": {
+      "type": "array",
+      "description": "Findings discovered this iteration, including ones no fix was applied for.",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "fixes_applied": {
+      "type": "array",
+      "description": "The subset of new_findings actually edited into the tree via Edit/MultiEdit. One entry per edit location: a fix spanning several places in one file contributes several entries.",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "fixes_skipped_persistent": {
+      "type": "array",
+      "description": "Identifiers of findings skipped because a prior iteration already recorded them as 'persistent — fix failed'.",
+      "items": { "type": "string" }
+    },
+    "no_new_findings": {
+      "type": "boolean",
+      "description": "True when this iteration discovered zero new findings. Drives the orchestrator's convergence termination."
+    },
+    "no_actionable_fixes": {
+      "type": "boolean",
+      "description": "True ONLY when every finding has an empty pre_edit_content, i.e. no swap pair was captured for any of them. A finding with a non-empty pre_edit_content and a different post_edit_content is actionable regardless of file type — markdown, JSON, config, and code all qualify. Enforced by test/harness-common/test_harness_schema.py, which JSON Schema alone cannot express."
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "required": [
+        "file",
+        "line",
+        "category",
+        "summary",
+        "severity",
+        "confidence",
+        "agent",
+        "pre_edit_content",
+        "post_edit_content"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Repo-relative path, forward slashes."
+        },
+        "line": { "type": "integer", "description": "1-indexed start line." },
+        "end_line": {
+          "type": "integer",
+          "description": "1-indexed end line; equal to line for a single-line finding."
+        },
+        "category": {
+          "type": "string",
+          "description": "Skill-specific category taken from the agent finding (Bug, Guideline Violation, Testability Barrier, ...)."
+        },
+        "guideline": {
+          "type": "string",
+          "description": "The specific project rule, or a 'General: ...' fallback."
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "One sentence, at most 120 characters."
+        },
+        "fix_description": {
+          "type": "string",
+          "description": "Brief description of the fix applied. Empty when no fix was applied."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["Critical", "Warning", "Suggestion"]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["High", "Medium", "Low"],
+          "description": "Post-validation confidence. Low findings are recorded for the report and the next iteration's context but never earn a fix — see the auto-apply gate in references/harness-mode.md step 4."
+        },
+        "agent": {
+          "type": "string",
+          "description": "Name of the analysis agent that produced the finding."
+        },
+        "pre_edit_content": {
+          "type": "string",
+          "description": "The exact original text that was replaced. Empty means no fix was applied. Bisection reverts by string swap, so this must match the tree byte for byte."
+        },
+        "post_edit_content": {
+          "type": "string",
+          "description": "The exact replacement text. An empty string is valid and means the fix deletes the matched code."
+        }
+      }
+    }
+  }
+}

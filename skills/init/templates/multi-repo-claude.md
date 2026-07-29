@@ -12,7 +12,7 @@
 
 ## Cross-Repo Conventions
 
-[2-4 bullets: API contract, auth flow, shared patterns, communication protocol]
+[At most 4 bullets — a ceiling, not a target: the API contract, auth flow, shared patterns, or communication protocol that span these repos. Delete the section if nothing does.]
 
 ## Repo Docs
 

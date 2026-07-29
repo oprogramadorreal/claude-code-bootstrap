@@ -2,43 +2,21 @@
 
 GitHub: https://github.com/oprogramadorreal/optimus-claude
 
-A Claude Code plugin — a collection of markdown-based skills, not a traditional coding project. All "source code" is SKILL.md files containing step-by-step instructions that Claude Code follows when a skill is invoked.
+A Claude Code plugin whose source is markdown: `SKILL.md` files are instructions a model executes, not documentation about code that runs. Edit them as prompts, not as prose.
 
-## Before making changes
+Test command: `bash scripts/validate.sh && bash scripts/test-hooks.sh && python -m pytest test/`
 
-Read the root README.md to understand the plugin's full capabilities — skills, agents, hooks, formatters, and how they interact. Then read CONTRIBUTING.md for project structure, skill anatomy, manifest conventions, feature branch testing, and version bumping.
+## Where to look
 
-## Project layout
+Load the doc that matches the change — not all of them.
 
-- `.claude-plugin/` — plugin manifests (plugin.json, marketplace.json)
-- `agents/` — plugin-level agent definitions (code-simplifier, test-guardian)
-- `hooks/` — plugin-level hooks (SessionStart for project state awareness)
-- `references/` — shared reference docs consumed across skills (see the Reference Hierarchy in `.claude/docs/architecture.md`)
-- `skills/<name>/` — one directory per skill (SKILL.md + README.md + optional agents/, templates/, and references/)
-- `scripts/` — validation and test scripts (CI and local)
-- `scripts/harness_common/` — shared modules + `cli.py` invoked by the `*-deep` orchestrator skills
-- `test/` — expected outputs and generated fixtures for skill tests, plus `test_format_python_hook.py` for the repo's Python formatter hook
-- `test/harness-common/` — tests for the orchestrator CLI and shared modules
-- `.claude/` — project-level Claude Code settings and hooks
-
-## Commands
-
-```bash
-bash scripts/validate.sh && bash scripts/test-hooks.sh && python -m pytest test/   # Run tests
-```
-
-For coverage: `python -m pytest test/harness-common/ --cov scripts/harness_common --cov-report=term-missing`
-
-Or use the batch scripts: `test.cmd` (tests), `test-coverage.cmd` (coverage + HTML report in htmlcov/).
-First-time setup: `install.cmd` (creates `.venv` and installs dev dependencies).
-
-## Skill-writing guidelines
-
-When creating or making non-trivial changes to a skill or agent (any file under `skills/<name>/`, `agents/`, or shared `references/`), read and apply `.claude/docs/skill-writing-guidelines.md` before editing. For non-markdown files (`scripts/`, `hooks/`), apply `.claude/docs/coding-guidelines.md` instead. `.claude/docs/architecture.md` documents the directory map, orchestrator data flow and the shared CLI, module dependencies, and skill/agent/reference hierarchy. A `.claude/docs/testing.md` bridge file also exists so that `/optimus:unit-test`, the code-review test-guardian agent, and the SessionStart hook can discover this repo's pytest conventions through the standard doc-loading path.
-
-## Testing changes
-
-See CONTRIBUTING.md for the full testing workflow (validation, hooks, fixtures, skill execution) and the feature branch testing workflow.
+| Changing | Read first |
+|---|---|
+| A skill, agent, or shared reference (`skills/`, `agents/`, `references/`) | `.claude/docs/skill-writing-guidelines.md` |
+| Scripts or hooks (`scripts/`, `hooks/`) | `.claude/docs/coding-guidelines.md` |
+| Tests, or anything under `scripts/harness_common/` | `.claude/docs/testing.md` |
+| Directory map, orchestrator data flow, reference hierarchy | `.claude/docs/architecture.md` |
+| Contribution workflow, skill anatomy, feature-branch testing, version bumping | `CONTRIBUTING.md` |
 
 ## Key rules
 

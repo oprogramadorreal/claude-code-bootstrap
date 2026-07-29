@@ -1,0 +1,51 @@
+{
+  "cycle": 2,
+  "phase": "unit-test",
+  "coverage": {
+    "tool": "pytest-cov",
+    "before": 41.5,
+    "after": 58.0,
+    "delta": 16.5
+  },
+  "tests_written": [
+    {
+      "file": "test/test_auth.py",
+      "target_file": "src/auth.py",
+      "target_description": "token expiry and refresh paths",
+      "test_count": 6,
+      "status": "pass",
+      "failure_reason": null
+    },
+    {
+      "file": "test/test_billing.py",
+      "target_file": "src/billing.py",
+      "target_description": "proration on mid-cycle plan change",
+      "test_count": 2,
+      "status": "fail-abandoned",
+      "failure_reason": "reveals a rounding bug in existing code; reported, not fixed"
+    }
+  ],
+  "untestable_code": [
+    {
+      "file": "src/report.py",
+      "line": 14,
+      "end_line": 63,
+      "function": "build_monthly_report",
+      "barrier": "hardcoded-dependency",
+      "barrier_description": "constructs its own S3 client inline, so no seam to substitute a fake",
+      "suggested_refactoring": "accept the client as a constructor argument"
+    }
+  ],
+  "bugs_discovered": [
+    {
+      "file": "src/billing.py",
+      "line": 88,
+      "description": "proration rounds half-down, so a mid-cycle upgrade undercharges by one cent",
+      "severity": "Medium"
+    }
+  ],
+  "no_new_tests": false,
+  "no_untestable_code": false,
+  "no_coverage_gained": false,
+  "blocked": null
+}

@@ -4,40 +4,41 @@ Common constraints, quality bar, exclusion rules, and false-positive guidance fo
 
 ## Agent Constraints
 
-- **Read-only analysis.** Do NOT modify any files, create any files, or run any commands that change state. You are analyzing code, not fixing it. One carve-out: you MAY run the project's existing test and coverage commands when your agent prompt's role explicitly requires it (e.g., a test-guardian verifying the suite passes); agents whose role doesn't require test runs remain fully read-only.
-- **Your findings will be independently validated.** Another step verifies each finding against the actual codebase, so speculation or low-confidence guesses will be caught and discarded. Only report what you are confident about.
+- **Read-only analysis.** Do NOT modify any files, create any files, or run any commands that change state. You are analyzing code, not fixing it. One carve-out: you MAY run the project's existing test or coverage commands when your agent prompt's role explicitly requires it — never under `HARNESS_MODE_INLINE`, where the orchestrator owns every test run.
+- **Report what you find; do not pre-filter for the reader.** A later pass validates every finding against the actual codebase and drops what it cannot confirm. Label confidence honestly and let that pass do its job — a real issue you withheld is the more expensive error, and it is the one nobody downstream can recover.
+
+## Dual Lens
+
+When `.claude/docs/skill-writing-guidelines.md` exists, the project authors markdown instructions for an AI agent, and those files follow different quality rules than code. Judge `.md` files under `skills/`, `agents/`, `prompts/`, `commands/`, or `instructions/` (including nested `references/`) by `skill-writing-guidelines.md`; judge everything else — including shell hooks, scripts, and JSON manifests — by `coding-guidelines.md`. Never cross the two. When the file does not exist, this does not apply.
 
 ## Quality Bar
 
 - Every finding must have real impact, not be a nitpick
 - Be specific and actionable (not vague "consider refactoring")
-- Be high confidence — assign a confidence level to each finding: **High** (clear evidence), **Medium** (plausible with some evidence), or **Low** (uncertain — prefer to omit)
+- Label each finding **High** (clear evidence), **Medium** (plausible, some evidence), or **Low** (uncertain, or evidence you could not confirm)
 
 ## All Agents Exclude
 
 - Style/formatting concerns (linters handle these)
 - Subjective suggestions ("I would prefer...")
 - Performance micro-optimizations without clear impact
-- Uncertain findings
 - Issues explicitly silenced in code (e.g., `// eslint-disable`, `# noqa`)
 - **Generated source files** — skip `*.g.dart`, `*.freezed.dart`, `*.mocks.dart` (Dart/Flutter build_runner output), `*.Designer.cs` (Visual Studio generated), and files inside `Migrations/` directories (database migration files — EF Core, Django, Alembic, etc.). Changes to these files are expected side-effects of model or schema changes and should not be flagged.
 
 ## Finding Cap
 
-Up to **15** findings — only when each is a distinct root cause with supporting evidence. Do NOT pad to reach the cap: 3 strong findings are preferred over 15 weak ones.
+Up to **15** findings, each a distinct root cause with supporting evidence. The cap is a ceiling, not a target — do not pad to reach it. A skill may define a finding category that composes on top of this cap; when yours does, its own shared-constraints file states that budget.
 
-### Per-category budget exceptions
+## Structural-Neighbor Scope Expansion
 
-Some categories defined in skill-specific `shared-constraints.md` files have **separate per-pass budgets** that compose *on top of* the 15 cap above — they are not crowded out by domain findings. Currently the only such category is:
+When you flag an issue in file `X`, check the files structurally tied to it — same-name siblings, files that import or re-export a symbol you named — for the same pattern, or for its absence where it should mirror `X`. Report each as a new consistency finding referencing the original as its trigger.
 
-- **`Intent Mismatch`** (code-review, PR/MR mode only) — up to **5** additional findings per agent per pass. Defined in `skills/code-review/agents/shared-constraints.md`. The rationale is in that file; the cap exception lives here so it composes correctly with the 15-cap rule and is visible to any agent that reads this file.
-
-Skill-specific `shared-constraints.md` files MAY define additional per-category exceptions, but each must be listed here so the composition is explicit. Do not introduce hidden per-category budgets in skill-specific files.
+Limits: at most **3** extra files per original finding, reached through a structural link you can point at rather than a hunch; never duplicate the original finding. Expansion is opportunistic — if nothing is structurally tied, do nothing.
 
 ## False Positives to Avoid
 
-- Apparently incorrect or unusual-looking but actually correct code (intentional deviations) — when evidence of intent is ambiguous, prefer to omit the finding rather than flag the deviation. This does not override flagging of genuine bugs, security issues, or guideline violations.
+- Apparently incorrect or unusual-looking but actually correct code (intentional deviations). Where the evidence of intent is ambiguous, report it at **Low** confidence and name the evidence you could not confirm.
 - Pedantic nitpicks
 - Linter-catchable issues
-- General code quality concerns not tied to project guidelines
-- Findings that contradict another agent's domain — e.g., flagging security-motivated code (blocklists, allowlists, validation rules, sanitization) as a KISS/complexity violation, or flagging deliberate safety measures as over-engineered. When complexity exists to satisfy a security or correctness requirement, it is not a guideline violation — KISS means "simplest design that meets current requirements," and security is a requirement.
+- Code-quality opinions you cannot tie to the guidelines you were given — the project's own, or the baseline set handed to you when the project has none
+- Complexity that exists to satisfy a security or correctness requirement is not a guideline violation — KISS means "simplest design that meets current requirements," and security is a requirement. Blocklists, allowlists, validation rules, sanitization, and deliberate safety measures are not over-engineering. (You do not need to predict what other agents will say: contradictions between agents are resolved during consolidation, which sees every agent's output.)

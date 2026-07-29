@@ -4,74 +4,26 @@
 
 ```
 optimus-claude/
-├── .claude/                    # Claude Code settings and hooks (for contributors)
-│   ├── CLAUDE.md
-│   ├── settings.json
-│   ├── docs/                  # Contributor guidelines (skill-writing, coding, architecture, testing)
-│   └── hooks/
-│       ├── format-python.py
-│       └── restrict-paths.sh
-├── .claude-plugin/
-│   ├── plugin.json           # Plugin metadata (name, version, author)
-│   └── marketplace.json      # Marketplace catalog (how Claude Code discovers the plugin)
-├── agents/                    # Plugin-level agents — user-invokable, also extended by skill-level agents
-│   ├── code-simplifier.md     # Code simplification agent (extended by code-review, refactor, tdd)
-│   ├── test-guardian.md       # Test coverage monitoring agent (extended by code-review, tdd)
-├── references/                # Shared reference docs consumed across skills (see the Reference Hierarchy in .claude/docs/architecture.md)
-├── hooks/
-│   ├── hooks.json            # Plugin-level hooks (SessionStart for skill awareness)
-│   └── session-start         # Outputs dynamic project state on session start/resume/clear/compact
-├── scripts/
-│   ├── validate.sh           # Structural validation (CI)
-│   ├── test-hooks.sh         # Hook execution tests (CI)
-│   ├── generate-fixtures.sh  # Generates minimal project fixtures for testing (local)
-│   ├── test-skills.sh        # Automated skill execution tests via claude -p (local)
-│   └── harness_common/       # Shared modules + cli.py invoked by the *-deep orchestrator skills
-│       ├── cli.py            # Subcommand CLI (init, snapshot, deep-step, etc.)
-│       ├── findings.py       # Status escalation state machine
-│       ├── convergence.py    # Coverage convergence checks
-│       ├── fixes.py          # Apply / revert / bisect (mechanical, content-based)
-│       ├── git.py            # Checkpoint commits, stash, branch-base detection, PR fetch
-│       ├── parser.py         # JSON-block extraction from subagent output
-│       ├── progress.py       # JSON read/write/backup
-│       ├── runner.py         # Test runner with platform-aware bash routing
-│       ├── reporting.py      # Cumulative report printing + commit-body builders (also test-command detection)
-│       └── constants.py      # Shared status / cap constants
 ├── skills/
 │   ├── init/                 # /optimus:init
-│   ├── spec-init/            # /optimus:spec-init
 │   ├── how-to-run/           # /optimus:how-to-run
 │   ├── unit-test/            # /optimus:unit-test
-│   ├── unit-test-deep/       # /optimus:unit-test-deep
 │   ├── refactor/             # /optimus:refactor
-│   ├── refactor-deep/        # /optimus:refactor-deep
 │   ├── code-review/          # /optimus:code-review
-│   ├── code-review-deep/     # /optimus:code-review-deep
+│   ├── deep/                 # /optimus:deep (review | refactor | coverage)
+│   ├── gauntlet/             # /optimus:gauntlet
 │   ├── tdd/                  # /optimus:tdd
-│   ├── workflow/             # /optimus:workflow
 │   ├── pr/                   # /optimus:pr
 │   ├── prompt/               # /optimus:prompt
 │   ├── permissions/          # /optimus:permissions
 │   ├── reset/                # /optimus:reset
-│   ├── branch/               # /optimus:branch
 │   ├── worktree/             # /optimus:worktree
-│   ├── commit/               # /optimus:commit
-│   ├── brainstorm/           # /optimus:brainstorm
+│   ├── commit/               # /optimus:commit (default | suggest | branch)
+│   ├── brainstorm/           # /optimus:brainstorm (design | scaffold)
 │   ├── handoff/              # /optimus:handoff
-│   ├── commit-message/       # /optimus:commit-message
 │   └── jira/                 # /optimus:jira
-├── test/
-│   ├── expected-outputs.yaml # Expected outputs for skill tests
-│   ├── harness-common/       # Python unit tests for the harness CLI and shared modules
-│   └── fixtures/             # Generated project fixtures (gitignored)
-├── requirements-dev.txt      # Python dev dependencies (pytest, pytest-cov, black, isort)
-├── install.cmd               # Create .venv and install dev dependencies
-├── test.cmd                  # Run Python unit tests
-├── test-coverage.cmd         # Run Python tests with coverage report
-├── pyproject.toml            # pytest configuration (importlib import mode)
-├── README.md
-├── CONTRIBUTING.md
-└── LICENSE
+└── scripts/harness_common/    # orchestrator CLI: cli.py plus findings, convergence,
+                              # fixes, git, parser, progress, runner, reporting, constants
 ```
 
 ## Skill anatomy
@@ -91,41 +43,11 @@ skills/<skill-name>/
 
 **`SKILL.md`** is the key file. It starts with YAML frontmatter and contains the instructions Claude Code follows when the skill is invoked:
 
-```yaml
----
-description: Short description shown in /plugin install output
-disable-model-invocation: true
-argument-hint: "[optional-args]"
----
-
-# Skill Title
-
-Step-by-step instructions...
-```
-
-All skills **must** use `disable-model-invocation: true`. Skills that take arguments should also set `argument-hint` (quoted — bare brackets parse as a YAML list); it is shown in the `/` menu autocomplete. The rationale for this rule lives in `.claude/docs/skill-writing-guidelines.md` under Design Principles.
-
-**Shared references:** when a procedure is used by 2+ skills, extract it to a reference file owned by the canonical skill — see `.claude/docs/skill-writing-guidelines.md` under "Shared References" for the rule and examples.
-
-**Note:** The `name` field is intentionally omitted from frontmatter. When present, it strips the plugin namespace prefix — `/optimus:init` would appear as just `/init`, shadowing the builtin command. See [anthropics/claude-code#22063](https://github.com/anthropics/claude-code/issues/22063).
+Frontmatter rules — including why there is no `name:` field — are in `.claude/docs/skill-writing-guidelines.md` under Structure, and `scripts/validate.sh` enforces them.
 
 ## Agent architecture
 
-The plugin uses a two-tier agent design. See `references/agent-architecture.md` for the full explanation.
-
-**Create a plugin-level agent** (`agents/`) when:
-- The agent represents a reusable quality concern (e.g., code simplification, test coverage monitoring)
-- Multiple skills will extend its core behavior via the specialization pattern
-
-**Create a skill-level agent** (`skills/<name>/agents/`) when:
-- The agent is specific to one skill's workflow (e.g., bug-detector for code-review)
-- The agent needs skill-specific scope, output format, or exclusion boundaries
-
-**Extend a plugin-level agent** from a skill-level agent when:
-- The skill needs the same core behavior but with different scope or output format
-- Use `Read $CLAUDE_PLUGIN_ROOT/agents/<name>.md for your approach` to inherit, then add skill-specific instructions
-
-**Add shared constraints** to `references/shared-agent-constraints.md` when the rule applies to all analysis agents across all skills. Add skill-specific addendums to the skill's own `shared-constraints.md`.
+Two tiers, no inheritance. The rules — and the dispatch-time path-substitution requirement — are in `.claude/docs/skill-writing-guidelines.md` under Agents and in `references/agent-architecture.md`.
 
 ## Adding or modifying a skill
 
@@ -135,11 +57,7 @@ The plugin uses a two-tier agent design. See `references/agent-architecture.md` 
 4. Add the skill to the Skills section in the root `README.md`
 5. Add the skill directory to the project-structure tree in this file — `scripts/validate.sh` asserts every `skills/` directory appears in both the root `README.md` and this tree
 
-Follow the conventions visible in existing skills — study `skills/commit-message/` for a minimal example or `skills/init/` for a full-featured one.
-
-### Output tone and formatting
-
-The content rules for skill bodies (no decorative emoji in output templates, no hand-rolled "[Step N/M]" progress indicators, imperative fan-out counts for parallel-agent steps) live in `.claude/docs/skill-writing-guidelines.md` under "Writing Style".
+Follow the conventions visible in existing skills — study `skills/worktree/` for a minimal example or `skills/init/` for a full-featured one.
 
 ## Skill-authoring projects as a stack
 
@@ -147,40 +65,13 @@ The content rules for skill bodies (no decorative emoji in output templates, no 
 
 This means optimus supports Claude Code plugins (including optimus-claude itself), Codex skill repos, prompt libraries, custom agent frameworks, and any other project whose "source code" is markdown instructions authored for an AI agent.
 
-For the full routing rules, see the "Skill authoring lens" section of `skills/init/references/constraint-doc-loading.md`. For the template content installed into skill-authoring projects, see `skills/init/templates/docs/skill-writing-guidelines.md`.
+The routing rule itself lives in `references/shared-agent-constraints.md` under Dual Lens; the template installed into skill-authoring projects is `skills/init/templates/docs/skill-writing-guidelines.md`.
 
 ## Plugin manifests
 
-**`plugin.json`** — plugin identity and version:
+`.claude-plugin/plugin.json` carries the plugin identity and version; bump it for any meaningful change and update the version badge in `README.md` to match — `validate.sh` asserts the two agree on PR branches.
 
-```json
-{
-  "name": "optimus",
-  "version": "1.0.1",
-  "description": "...",
-  "author": { "name": "oprogramadorreal", "url": "..." },
-  "license": "MIT"
-}
-```
-
-**`marketplace.json`** — how Claude Code discovers the plugin in the marketplace:
-
-```json
-{
-  "name": "optimus-claude",
-  "plugins": [
-    {
-      "name": "optimus",
-      "source": {
-        "source": "url",
-        "url": "https://github.com/oprogramadorreal/optimus-claude.git"
-      }
-    }
-  ]
-}
-```
-
-The `source` object supports an optional `"ref"` field to pin plugin code to a specific branch, tag, or SHA. This is only used during feature branch testing (see below) and must not be present on master.
+`.claude-plugin/marketplace.json` is how Claude Code discovers the plugin. Its `source` object accepts an optional `ref` to pin plugin code to a branch, tag, or SHA; that is only for the feature-branch testing flow below, and `validate.sh` fails while it is present.
 
 ## Testing
 
@@ -202,18 +93,7 @@ Runs on every push and PR to master. Catches broken cross-references, syntax err
 bash scripts/validate.sh
 ```
 
-Checks include:
-- CRLF and shebang consistency in scripts
-- SKILL.md frontmatter validity (`description`, `disable-model-invocation: true`, no `name:`)
-- Every `$CLAUDE_PLUGIN_ROOT/...` path resolves to an existing file
-- No orphaned files in `references/`, `templates/`, or `agents/`
-- Template scripts parse without syntax errors (bash, node, python)
-- JSON templates are valid
-- Every skill directory has both `SKILL.md` and `README.md`
-- README lists all skills
-- `hooks.json` references existing scripts
-- Plugin-level agent files have required frontmatter fields
-- Reference depth does not exceed 2 levels (SKILL → A → B max)
+Every check prints its own name as it runs, so the script is the list. Two invariants a contributor has to know before editing it: section 17 pins only strings a program parses or that cross a conversation boundary — never the wording of a skill's own instructions — and `.claude/hooks/restrict-paths.sh` must stay byte-identical to the template users install, with `HOOK_VERSION` bumped on every behavioural change so the SessionStart hook can spot projects running a stale copy.
 
 ### Hook execution tests (CI)
 
@@ -223,11 +103,7 @@ Unit tests for the session-start hook, formatter hooks, and the path-restriction
 bash scripts/test-hooks.sh
 ```
 
-Tests all state combinations (uninitialized, partial, fully configured, dirty tree) and verifies:
-- Correct recommendations for each project state
-- Zero-output guarantee for fully configured projects
-- Formatter hooks parse JSON input and filter by file extension correctly
-- restrict-paths hook enforces the tiered path model (in-project writes allowed, out-of-project writes ask, outside deletes denied) with memory-store/scratchpad exemptions and fail-closed fallbacks
+Each assertion names itself in the output. The rationale for individual guards lives next to the code they protect — the `set -f` block in `collapse_dot_segments` is the one worth reading before touching path handling. Note that every verdict is scored from the hook's exit status as well as its output, so a hook that dies before printing scores CRASH rather than passing as a silent allow.
 
 ### Python unit tests (CI)
 
@@ -271,7 +147,7 @@ Available fixtures: `node`, `python`, `go`, `rust`, `csharp`, `monorepo`, `empty
 Runs skills against generated fixtures via `claude -p` (headless mode) and validates expected outputs against `test/expected-outputs.yaml`. Requires the `claude` CLI installed and authenticated (plan subscription or API key).
 
 ```shell
-bash scripts/test-skills.sh                              # default: init + commit-message
+bash scripts/test-skills.sh                              # default: init + commit-suggest
 bash scripts/test-skills.sh --skill init                 # test one skill
 bash scripts/test-skills.sh --skill init --fixture node  # test one skill + one fixture
 bash scripts/test-skills.sh --all                        # test all skill/fixture combinations

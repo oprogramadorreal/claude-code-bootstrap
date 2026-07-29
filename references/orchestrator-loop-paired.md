@@ -5,11 +5,11 @@
 2. [After the loop](#after-the-loop)
 3. [Per-phase notes](#per-phase-notes)
 
-Shared iteration template for `/optimus:unit-test-deep`. Each **cycle** runs a unit-test phase followed by a conditional refactor-testability phase. The orchestrator skill dispatches `/optimus:unit-test` and `/optimus:refactor` as two distinct subagents per cycle, each in its own fresh context.
+Iteration template for `/optimus:deep coverage`. Each **cycle** runs a unit-test phase followed by a conditional refactor-testability phase. The orchestrator dispatches `/optimus:unit-test` and `/optimus:refactor` as two distinct subagents per cycle, each in its own fresh context.
 
-The loop control discipline mirrors `references/orchestrator-loop-single.md` (slice-only progress reads, snapshot before dispatch, subagent output is text not state, plus the long-run conduct invariants — don't end a turn on a promise, and report only what the CLI confirmed) — see that reference for the rationale. Only the cycle structure differs.
+The loop control discipline mirrors `references/orchestrator-loop-single.md` (snapshot before dispatch, slice-only progress reads, subagent output is text not state, don't end a turn on a promise, report only what the CLI confirmed) — see that reference for the rationale. Only the cycle structure differs.
 
-**Plugin root.** Every command below writes `$CLAUDE_PLUGIN_ROOT` to mean the plugin root the orchestrator skill resolved in its Step 2. Bash-tool environment variables do **not** persist across separate Bash calls and may read empty on some platforms (notably Windows); if `echo $CLAUDE_PLUGIN_ROOT` was empty there, substitute the resolved absolute path **literally** into every `PYTHONPATH=...` command and into both dispatch prompts in this file.
+**Plugin root.** As in `orchestrator-loop-single.md`: substitute the root the orchestrator resolved in its Step 2 into every command and both dispatch prompts below.
 
 ## Per-cycle body
 
@@ -40,11 +40,10 @@ Agent tool call:
     `<absolute-plugin-root>/references/coverage-harness-mode.md` ("Unit-Test
     Phase Execution" section) exactly. Wherever the base SKILL.md or that
     reference mentions `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin
-    root above — your environment may not export it:
-    - Read the progress file above for prior coverage and untestable items.
-    - Discover gaps, write new tests, measure coverage, flag untestable code.
-    - Emit a single ```json:harness-output fenced block and stop.
-    - Do not use AskUserQuestion. Do not loop.
+    root above — your environment may not export it.
+
+    Do NOT run the full test suite or any `scripts/*.sh` wrapper: the
+    orchestrator owns that run. Coverage measurement is part of the phase.
 ```
 
 ### 3. Save the subagent return + extract JSON
@@ -60,9 +59,16 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli parse \
     --progress-file "<progress-path>"
 ```
 
-Passing `--progress-file` lets the CLI track consecutive parse failures across cycles (and across `--resume`); a single failure is a no-op and the loop moves on, while two consecutive failures cause step 11 (`check-termination`) to return `parse-failure` and terminate the loop. The counter is shared across both phases — a refactor parse failure followed by the next cycle's unit-test parse failure counts as two consecutive failures.
+Passing `--progress-file` lets the CLI track consecutive parse failures across cycles (and across `--resume`); two consecutive failures cause step 11 (`check-termination`) to return `parse-failure` and terminate the loop. The counter is shared across both phases — a refactor parse failure followed by the next cycle's unit-test parse failure counts as two consecutive failures.
 
-**Blocked gate:** if the extracted JSON has a non-null `blocked` field, the unit-test phase hit a stop gate it cannot work past (no test framework, failing baseline — see coverage-harness-mode.md "Stop gates under harness mode"). Do not run `unit-test-step` and do not dispatch further cycles: exit the loop, report the `blocked` reason to the user with the matching base-skill recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline), and proceed to "After the loop".
+**Blocked gate:** if the extracted JSON has a non-null `blocked` field, the unit-test phase hit a stop gate it cannot work past (no test framework, failing baseline — see coverage-harness-mode.md "Stop gates under harness mode"). Do not run `unit-test-step` and do not dispatch further cycles. Record the reason first — without this the final report names no cause at all:
+
+```bash
+PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli mark-termination \
+    --progress-file "<progress-path>" --reason blocked --message "<the blocked text>"
+```
+
+Then exit the loop, report the `blocked` reason to the user with the matching base-skill recovery advice (`/optimus:init` for a missing framework or broken build; triage the failing tests for a red baseline), and proceed to "After the loop". `blocked` is a resumable soft exit: the prerequisite is one the user can fix, so `final-report --archive` leaves the progress file in place and `--resume` picks the run up afterwards.
 
 ### 4. Record the unit-test phase
 
@@ -76,7 +82,7 @@ Stdout is one of:
 
 | Output | Meaning |
 |---|---|
-| `converged` | Skill reported plateau (`no_new_tests` + `no_untestable_code` or `no_coverage_gained`) — cycle ends, loop terminates. |
+| `converged` | Skill reported plateau (`no_new_tests` + `no_untestable_code`, or `no_new_tests` + `no_coverage_gained`) — cycle ends, loop terminates. |
 | `continue` | Unit-test phase complete — proceed to step 5. Also printed after a red-suite rollback (the CLI reverts the cycle's tests and drops the phase JSON without a distinct token — see Per-phase notes). |
 
 ### 5. Commit the unit-test phase checkpoint
@@ -105,7 +111,7 @@ Otherwise, **re-snapshot before dispatching the refactor subagent** so a refacto
 PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli snapshot --progress-file "<progress-path>"
 ```
 
-The unit-test phase (steps 2–5) wrote and committed new tests this cycle. The step-1 snapshot predates them, so a refactor-phase combined-regression restore against it would discard them. Re-running `snapshot` re-stamps the current cycle token (so step 8's freshness check still passes) and moves `pre_head` / `pre_stash` forward to the post-unit-test state, so a refactor rollback preserves the cycle's tests.
+The step-1 snapshot predates the tests the unit-test phase wrote this cycle — a refactor-phase restore against it would discard them. Re-running `snapshot` re-stamps the cycle token (step 8's freshness check still passes) and moves `pre_head`/`pre_stash` to the post-unit-test state, so a refactor rollback preserves the cycle's tests.
 
 Then dispatch:
 
@@ -128,14 +134,14 @@ Agent tool call:
     `$CLAUDE_PLUGIN_ROOT`, substitute the absolute plugin root above — your
     environment may not export it. The progress file lists pending untestable
     items under untestable_code; scope the refactor to those files only.
-    Apply fixes. Do NOT run the test command, any `scripts/*.sh`, or any
-    lint/build — the orchestrator owns all test execution. Emit a single
-    ```json:harness-output fenced block and stop.
+
+    Do NOT run the test command, any `scripts/*.sh`, or any lint/build step:
+    the orchestrator owns all test execution and bisection.
 ```
 
 ### 7. Save the refactor return + extract the refactor JSON
 
-Write the **refactor** subagent's final message text **verbatim** (the `pre_edit_content`/`post_edit_content` strings inside the JSON are the bisect's apply/revert data — a corrupted copy makes its fix unrecoverable) to a refactor-phase raw file — distinct from the unit-test phase's file (step 3) so a forgotten write fails the parse loudly (missing file) instead of silently re-ingesting the stale unit-test JSON. Then extract:
+Write the **refactor** subagent's final message text **verbatim** (the `pre_edit_content`/`post_edit_content` strings inside the JSON are the bisect's apply/revert data) to a refactor-phase raw file — distinct from the unit-test phase's file (step 3) so a forgotten write fails the parse loudly instead of silently re-ingesting the stale unit-test JSON. Then extract:
 
 ```bash
 TMP_RAW=".claude/.unit-test-deep-rf-raw.txt"
@@ -145,7 +151,7 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli parse \
     --progress-file "<progress-path>"
 ```
 
-(`$TMP_RESULT` is reused from step 3 — refactor-step reads it immediately after this parse. The `--progress-file` flag continues to update `parse_failure_count` so a refactor-phase parse failure counts toward the two-consecutive-failures threshold.)
+(`$TMP_RESULT` is reused from step 3 — `refactor-step` reads it immediately after this parse; `--progress-file` keeps updating `parse_failure_count`.)
 
 ### 8. Record the refactor phase
 
@@ -191,7 +197,7 @@ TERMINATION=$(PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.
     --progress-file "<progress-path>")
 ```
 
-Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above.)
+Possible values: `continue`, `convergence`, `cap`, `diminishing-returns`, `parse-failure`, `blocked`. If anything other than `continue`, exit the loop. (`parse-failure` is surfaced automatically when the CLI's `parse_failure_count` reaches its threshold — see the parse step above. `blocked` is echoed back here after the unit-test phase records it — see that step.)
 
 ## After the loop
 
@@ -200,12 +206,12 @@ PYTHONPATH="$CLAUDE_PLUGIN_ROOT/scripts" python -m harness_common.cli final-repo
     --progress-file "<progress-path>" --archive
 ```
 
-`--archive` moves the progress file to its `.done.json` sibling (the `.json` suffix is replaced — e.g. `.claude/unit-test-deep-progress.done.json`) once the run is complete — except on a `diminishing-returns` soft-exit, which the CLI leaves un-archived (prints `not-archived`) so the run stays resumable via `--resume`.
+`--archive` moves the progress file to its `.done.json` sibling (the `.json` suffix is replaced — e.g. `.claude/unit-test-deep-progress.done.json`) once the run is complete — except on a `diminishing-returns` or `blocked` soft-exit, which the CLI leaves un-archived (prints `not-archived`) so the run stays resumable via `--resume`.
 
 ## Per-phase notes
 
-- The unit-test phase runs full project tests after the subagent's writes (the CLI calls `run_tests` internally) **before** merging the session's results. If the suite is red, the CLI rolls the working tree back to the pre-cycle snapshot and drops the session output, so a failing cycle is never committed and its coverage/untestable/bug data never leaks into later cycles; on green it merges and proceeds. The refactor phase bisects on failure (same algorithm as deep-step).
-- The unit-test base skill is expected to leave the suite green (failing tests it writes are marked `fail-fixed` or `fail-abandoned` and not left active); the CLI does not retest individual tests. Its full-suite run is the safety net — a red result rolls the whole cycle back rather than committing it.
-- Coverage delta is taken from the unit-test subagent's `coverage.delta`, or derived from `coverage.before`/`coverage.after` when the subagent omits it (so the plateau check still fires on a genuine zero-gain cycle). The CLI records the history; the orchestrator skill does not need to inspect it directly.
-- The orchestrator skill never reads the full `untestable_code` array between cycles — only `pending-refactor-count` decides whether to dispatch the refactor phase.
-- **Parse-failure recovery:** identical to the single-loop variant — see `orchestrator-loop-single.md` "Parse-failure recovery". The rule applies to both phase dispatches (unit-test and refactor); a parse failure in either phase counts toward the two-consecutive-failures threshold. On a failed parse, never run a `*-step` subcommand against the stale `$TMP_RESULT` (`parse` only rewrites it on success): a unit-test-phase failure skips steps 4–9, a refactor-phase failure skips steps 8–9; in both cases continue at step 10 (record the cycle, noting the parse failure) then step 11.
+- The unit-test phase runs full project tests (the CLI calls `run_tests` internally) **before** merging the session's results: a red suite rolls the working tree back to the pre-cycle snapshot and drops the session output, so a failing cycle is never committed and its coverage/untestable/bug data never leaks into later cycles. The refactor phase bisects on failure (same algorithm as `deep-step`).
+- The unit-test base skill is expected to leave the suite green (failing tests it writes are marked `fail-fixed` or `fail-abandoned`, not left active); the CLI does not retest individual tests — its full-suite run is the safety net.
+- Coverage delta comes from the unit-test subagent's `coverage.delta`, or is derived from `coverage.before`/`coverage.after` when omitted, so the plateau check still fires on a genuine zero-gain cycle. The CLI records the history.
+- The orchestrator never reads the full `untestable_code` array between cycles — only `pending-refactor-count` decides whether to dispatch the refactor phase.
+- **Parse-failure recovery:** identical to `orchestrator-loop-single.md` "Parse-failure recovery"; a parse failure in either phase counts toward the two-consecutive-failures threshold. On a failed parse, never run a `*-step` subcommand against the stale `$TMP_RESULT` (`parse` only rewrites it on success): a unit-test-phase failure skips steps 4–9, a refactor-phase failure skips steps 8–9; in both cases continue at step 10 (record the cycle, noting the parse failure) then step 11.
