@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.3.4-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.4.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -52,6 +52,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 | [`/optimus:refactor`](skills/refactor/README.md) | Refactors for guideline compliance and testability through four analysis lenses, with `testability` and `guidelines` focus modes. *Run init first.* |
 | [`/optimus:code-review`](skills/code-review/README.md) | Reviews changes for bugs, security issues, and guideline compliance through 5 to 7 review lenses. Auto-routes to PR mode on a clean branch with an open PR/MR and reads the PR description as author intent. *Run init first.* |
 | [`/optimus:deep`](skills/deep/README.md) | Iterative auto-fix orchestrator: `deep review`, `deep refactor`, or `deep coverage`. Runs the base skill in a fresh subagent per iteration, applies fixes, runs tests, bisects failures, and resumes across sessions. *Requires init + test command.* |
+| [`/optimus:gauntlet`](skills/gauntlet/README.md) | Runs a Gauntlet Loop: turns an ambitious goal into a builder/critic improvement loop judged against a concrete quality bar — fresh-context critics compare the real output against the bar and return either *beats the bar* or the biggest remaining gap, with no fixed round count, until the output beats the bar or you stop the run. Confirms before starting the long multi-agent run. *Run init first.* |
 
 ### Utility
 
@@ -70,7 +71,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 
 1. **Setup** — `/optimus:permissions` for guardrails, then `/optimus:init` to generate project context and test infrastructure.
 2. **Strengthen** — `/optimus:unit-test` for coverage (or `/optimus:deep coverage` for the automated loop), `/optimus:refactor` for code quality.
-3. **Build** — pick the entry point that matches the task: `/optimus:tdd "description"` directly for small clear work; `/optimus:jira PROJ-123` first for tracked work; `/optimus:brainstorm` first when design decisions are needed (greenfield products start with `/optimus:brainstorm scaffold`).
+3. **Build** — pick the entry point that matches the task: `/optimus:tdd "description"` directly for small clear work; `/optimus:jira PROJ-123` first for tracked work; `/optimus:brainstorm` first when design decisions are needed (greenfield products start with `/optimus:brainstorm scaffold`); `/optimus:gauntlet <goal>` for ambitious long-horizon goals judged against a concrete quality bar.
 4. **Ship** — `/optimus:commit` → `/optimus:pr` → `/optimus:code-review` in a fresh conversation (or `/optimus:deep review` for iterative auto-fix).
 
 **Keep intent flowing from implementation to review:** stay in the implementation conversation when running `/optimus:commit` and `/optimus:pr` — they capture *why* the change was made into the commit message and PR description. Then review in a fresh conversation: `/optimus:code-review` reads the PR description as author intent and checks whether the implementation delivers what it claims, not just whether it follows style rules. (`/optimus:tdd` auto-commits per cycle and pushes at the end, so its flow collapses to `tdd` → `pr` → review.)
