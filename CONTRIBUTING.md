@@ -11,6 +11,7 @@ optimus-claude/
 │   ├── refactor/             # /optimus:refactor
 │   ├── code-review/          # /optimus:code-review
 │   ├── deep/                 # /optimus:deep (review | refactor | coverage)
+│   ├── gauntlet/             # /optimus:gauntlet
 │   ├── tdd/                  # /optimus:tdd
 │   ├── pr/                   # /optimus:pr
 │   ├── prompt/               # /optimus:prompt
