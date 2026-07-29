@@ -65,8 +65,34 @@ class TestCheckUnitTestConvergence:
         converged, reason = check_unit_test_convergence(output)
         assert converged is True
 
+    # Strict about false, generous about true. A true spelling the reader fails
+    # to recognize costs the whole remaining cycle cap, and costs it invisibly —
+    # termination.reason comes back "max_cycles" with nothing to say a
+    # convergence signal arrived and was dropped. `1` and `"1"` converged before
+    # the string guard was added, so rejecting them was a silent regression.
+    def test_integer_one_converges(self):
+        output = {"no_new_tests": 1, "no_untestable_code": 1}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is True
+
+    def test_integer_zero_does_not_converge(self):
+        output = {"no_new_tests": 0, "no_untestable_code": 0}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
+    def test_alternate_true_spellings_converge(self):
+        for spelling in ("1", "on", "y", "t", "Yes", " TRUE "):
+            output = {"no_new_tests": spelling, "no_untestable_code": spelling}
+            converged, _ = check_unit_test_convergence(output)
+            assert converged is True, spelling
+
     def test_unrecognized_flag_keeps_going(self):
-        output = {"no_new_tests": 1, "no_untestable_code": ["yes"]}
+        output = {"no_new_tests": ["yes"], "no_untestable_code": {"v": True}}
+        converged, reason = check_unit_test_convergence(output)
+        assert converged is False
+
+    def test_none_keeps_going(self):
+        output = {"no_new_tests": None, "no_untestable_code": None}
         converged, reason = check_unit_test_convergence(output)
         assert converged is False
 

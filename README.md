@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.3.3-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.3.4-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -49,8 +49,8 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 | [`/optimus:jira`](skills/jira/README.md) | Fetches a JIRA issue via MCP and distills it into a structured task at `docs/jira/` that downstream skills auto-detect. Analyzes the codebase for missing criteria and risks; recommends the next skill by complexity. |
 | [`/optimus:tdd`](skills/tdd/README.md) | Test-driven development through Red-Green-Refactor cycles with per-behavior commits and branch push. Auto-detects specs from `docs/specs/` or `docs/jira/`. *Requires init.* |
 | [`/optimus:unit-test`](skills/unit-test/README.md) | Discovers coverage gaps and writes convention-following tests. Never refactors source code; stops with a triage pointer when the test baseline is broken. *Requires init.* |
-| [`/optimus:refactor`](skills/refactor/README.md) | Refactors for guideline compliance and testability using parallel analysis agents, with `testability` and `guidelines` focus modes. *Run init first.* |
-| [`/optimus:code-review`](skills/code-review/README.md) | Reviews changes for bugs, security issues, and guideline compliance using parallel review agents. Auto-routes to PR mode on a clean branch with an open PR/MR and reads the PR description as author intent. *Run init first.* |
+| [`/optimus:refactor`](skills/refactor/README.md) | Refactors for guideline compliance and testability through four analysis lenses, with `testability` and `guidelines` focus modes. *Run init first.* |
+| [`/optimus:code-review`](skills/code-review/README.md) | Reviews changes for bugs, security issues, and guideline compliance through 5 to 7 review lenses. Auto-routes to PR mode on a clean branch with an open PR/MR and reads the PR description as author intent. *Run init first.* |
 | [`/optimus:deep`](skills/deep/README.md) | Iterative auto-fix orchestrator: `deep review`, `deep refactor`, or `deep coverage`. Runs the base skill in a fresh subagent per iteration, applies fixes, runs tests, bisects failures, and resumes across sessions. *Requires init + test command.* |
 
 ### Utility

@@ -1,6 +1,6 @@
 # optimus:code-review
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that reviews local changes, an open PR/MR, or a branch diff against your project's coding guidelines using 5 to 7 parallel review agents, each covering a different lens. Reports bugs, logic errors, security issues, and guideline violations; skips style and anything a linter catches. For iterative auto-fix in a loop, use [`/optimus:deep review`](../deep/README.md).
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that reviews local changes, an open PR/MR, or a branch diff against your project's coding guidelines through 5 to 7 lenses, each covering a different angle — applied inline on a small diff, fanned out to a parallel agent each on a larger one. Reports bugs, logic errors, security issues, and guideline violations; skips style and anything a linter catches. For iterative auto-fix in a loop, use [`/optimus:deep review`](../deep/README.md).
 
 ## Features
 

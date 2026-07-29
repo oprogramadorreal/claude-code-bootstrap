@@ -40,7 +40,15 @@ fi
 echo "[Shebangs]"
 bad_shebangs=""
 while IFS= read -r f; do
-  first_line=$(git cat-file -p "HEAD:$f" 2>/dev/null | head -1 | tr -d '\r')
+  # Read the blob whole and slice in bash rather than piping to `head -1`. With
+  # `set -o pipefail`, `head` exiting after one line leaves git writing into a
+  # closed pipe, so any blob larger than the pipe buffer (~64K) made the
+  # PIPELINE fail — `git cat-file` returned 128 — and `set -e` aborted the whole
+  # run at THIS check, silently skipping every section below. It only surfaced
+  # once test-hooks.sh and restrict-paths.sh grew past 64K.
+  blob=$(git cat-file -p "HEAD:$f" 2>/dev/null || true)
+  first_line=${blob%%$'\n'*}
+  first_line=${first_line%$'\r'}
   if [[ "$first_line" == "#!/bin/bash"* ]]; then
     bad_shebangs+="  $f"$'\n'
   fi
@@ -127,13 +135,16 @@ fi
 # project's installed copy. A behavioural change that forgets to bump it ships
 # silently to everyone who already ran /optimus:permissions.
 #
-# Pinned to the first 12 lines because that is where hooks/session-start stops
-# reading. It reads the marker with a bounded loop rather than sed — the file is
-# 1400+ lines and the scan ran twice per session start — so a marker pushed past
-# the bound would read as v0 on both sides and turn the freshness check into a
+# Pinned to the BANNER — the leading comment block — because that is where
+# hooks/session-start stops reading: it scans for the marker with a bounded loop
+# rather than sed (the file is 1800+ lines and the scan ran twice per session
+# start) and gives up at the first line that is not a comment. A marker below
+# that point reads as v0 on both sides and turns the freshness check into a
 # silent no-op, which is exactly the failure this check exists to prevent.
-check "restrict-paths template declares a HOOK_VERSION in its first 12 lines" \
-  bash -c "head -12 skills/permissions/templates/hooks/restrict-paths.sh | grep -qE '^# HOOK_VERSION: [0-9]+'"
+# Expressed the same structural way here rather than as a second copy of a line
+# count, so the two readers cannot drift apart.
+check "restrict-paths template declares a HOOK_VERSION in its banner" \
+  bash -c "sed -n '/^[^#]/q;p' skills/permissions/templates/hooks/restrict-paths.sh | grep -qE '^# HOOK_VERSION: [0-9]+'"
 
 # --- 4c. Dogfooded coding-guidelines matches its shipped template ---
 # .claude/docs/coding-guidelines.md is this repo's own copy of the file
@@ -515,20 +526,6 @@ require_tokens() {
   done
 }
 
-# require_min_count <identifier> <min> <file>: occurrence-count floor, for the
-# case where a contract needs the identifier on BOTH ends of a step and a single
-# surviving mention would satisfy require_tokens while the pairing is already
-# broken. `|| true` lets the count=0 case reach the comparison instead of
-# aborting under set -e — count=0 is exactly what this catches.
-require_min_count() {
-  local identifier=$1 expected=$2 file=$3 actual
-  actual=$(grep -cF -- "$identifier" "$file" 2>/dev/null || true)
-  [ -z "$actual" ] && actual=0
-  if [ "$actual" -lt "$expected" ]; then
-    contract_errors+="  $file cross-step identifier '$identifier' appears $actual times, expected >=$expected\n"
-  fi
-}
-
 # Scenario contract: brainstorm's spec template emits these headings; tdd's
 # scenario-driven shortcut greps specs for them.
 require_tokens skills/brainstorm/SKILL.md '## Scenarios' '### Scenario:'
@@ -621,16 +618,15 @@ require_tokens skills/how-to-run/SKILL.md 'Documented but unverifiable'
 require_tokens skills/how-to-run/references/guided-walkthrough.md \
   'Found but outdated' 'Partial' 'Missing'
 
-# The sanitization exemption is matched by FULL-LINE EQUALITY, not read for
-# meaning: Step 3/4 store each approved line in `rendered_line` under
-# `approved-unverifiable-items`, and the Step 6 audit exempts exactly those
-# lines. Both ends of that pairing have to survive — one remaining mention
-# satisfies require_tokens while the exemption is already dead (or, worse,
-# exempting lines nobody approved). Thresholds are the current counts.
-require_min_count 'approved-unverifiable-items' 1 skills/how-to-run/SKILL.md
-require_min_count 'rendered_line' 2 skills/how-to-run/SKILL.md
-require_min_count 'approved-unverifiable-items' 2 skills/how-to-run/references/step6-verification-audits.md
-require_min_count 'rendered_line' 2 skills/how-to-run/references/step6-verification-audits.md
+# NOT pinned here: `rendered_line` and `approved-unverifiable-items`, the
+# identifiers how-to-run's Step 3/4 store and its own Step 6 exempts by full-line
+# equality. They meet neither criterion above — no program parses them (nothing
+# under scripts/ mentions either name) and the list is explicitly IN-MEMORY, so
+# it never crosses a conversation boundary. They are one skill's internal
+# routing, read by the same model in the same conversation, which is exactly
+# what the preamble says belongs in test/ as behaviour rather than here as
+# wording. Pinned, renaming a variable inside how-to-run turned CI red with no
+# behavioural regression.
 
 # Handoff: the paradigm criterion-(b) case — this skill writes a document to
 # disk that a LATER conversation (or /optimus:handoff itself, on a re-run) reads

@@ -62,7 +62,16 @@ fi
 _hook_version=0
 read_hook_version() { # $1=file -> sets _hook_version; no marker means pre-versioning
   local v="" line n=0
-  while [ "$n" -lt 12 ] && IFS= read -r line; do
+  # Bounded by STRUCTURE — the banner comment the marker lives in — not by a
+  # line count. A literal bound was wrong in the SILENT direction: push the
+  # marker one line past it in the TEMPLATE and `want` reads 0, which
+  # `[ "$want" -gt "$have" ]` can never satisfy, so the staleness warning stops
+  # existing for every project instead of failing loudly. It was also a magic
+  # number duplicated in scripts/validate.sh. Stopping at the first line that is
+  # not a comment costs nothing in the normal case (the loop still breaks on the
+  # marker itself, eight lines in); the counter is only a runaway guard for a
+  # file that is comments all the way down.
+  while [ "$n" -lt 500 ] && IFS= read -r line; do
     n=$((n + 1))
     case "$line" in
       '# HOOK_VERSION:'*)
@@ -71,6 +80,8 @@ read_hook_version() { # $1=file -> sets _hook_version; no marker means pre-versi
         v="${v%%[![:digit:]]*}"          # keep the leading digit run only
         break
         ;;
+      '#'*|'') ;;                        # shebang, banner, blank — keep reading
+      *) break ;;                        # first line of code: the banner is over
     esac
   done < "$1" 2>/dev/null || v=""
   # Strip leading zeros: `[ 010 -gt 8 ]` evaluates 010 as OCTAL. No extglob needed.

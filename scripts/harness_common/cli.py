@@ -63,6 +63,7 @@ from .convergence import (
     check_coverage_plateau,
     check_refactor_convergence,
     check_unit_test_convergence,
+    read_flag,
 )
 from .findings import (
     finding_key,
@@ -216,7 +217,7 @@ def _promote_actionable_fixes(result):
     Defensive guard for the false-no-actionable case — see
     `references/harness-mode.md`.
     """
-    if not result.get("no_actionable_fixes", False):
+    if not read_flag(result, "no_actionable_fixes"):
         return
     new_findings = result.get("new_findings") or []
     if not new_findings:
@@ -1081,7 +1082,7 @@ def cmd_deep_step(args):
     _promote_actionable_fixes(result)
     new_count = len(result.get("new_findings") or [])
 
-    if result.get("no_new_findings", False):
+    if read_flag(result, "no_new_findings"):
         _register_iteration_findings(progress, result, fixes=[])
         test_passed = _vet_safe_exit_tree(
             progress, project_root, test_command, pre_stash, pre_head
@@ -1094,7 +1095,7 @@ def cmd_deep_step(args):
         write_progress(progress_path, progress)
         print("converged")
         return 0
-    if result.get("no_actionable_fixes", False):
+    if read_flag(result, "no_actionable_fixes"):
         _register_iteration_findings(progress, result, fixes=[])
         test_passed = _vet_safe_exit_tree(
             progress, project_root, test_command, pre_stash, pre_head

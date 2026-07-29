@@ -13,7 +13,11 @@ errors=0
 pass=0
 tmpdir=""
 rp_tmp=""
-trap 'for _d in "$tmpdir" "$rp_tmp"; do [ -n "$_d" ] && [ -d "$_d" ] && rm -rf "$_d"; done' EXIT
+# Separate from tmpdir, which setup_fixture/cleanup_fixture create and destroy
+# around each case: these fixtures are read by assertions that stand outside any
+# one fixture's lifetime.
+ss_tmp=""
+trap 'for _d in "$tmpdir" "$rp_tmp" "$ss_tmp"; do [ -n "$_d" ] && [ -d "$_d" ] && rm -rf "$_d"; done' EXIT
 
 # --- Helpers ---
 
@@ -109,6 +113,16 @@ assert_exit_zero() {
     ((pass++)) || true
   else
     printf "  FAIL  %s (hook exited %s, expected 0)\n" "$label" "$status"
+    ((errors++)) || true
+  fi
+}
+
+assert_equals() { # $1=label $2=expected $3=actual
+  if [ "$2" = "$3" ]; then
+    printf "  PASS  %s\n" "$1"
+    ((pass++)) || true
+  else
+    printf "  FAIL  %s (expected %s, got %s)\n" "$1" "$2" "$3"
     ((errors++)) || true
   fi
 }
@@ -259,8 +273,28 @@ setup_versioned_fixture() { # $1=installed hook version, or "none" for no marker
   fi
   git add -A && git commit -q -m setup
 }
-ss_plugin_ver="$(sed -n 's/^# HOOK_VERSION:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
-  "$PLUGIN_ROOT/skills/permissions/templates/hooks/restrict-paths.sh" | head -1)"
+# Derived the way the HOOK derives it — stop at the first non-comment line —
+# rather than by scanning the whole file. An oracle that reads further than the
+# reader under test agrees with it only while the marker stays in the banner, so
+# the two could disagree exactly when the bound is exceeded, with the suite
+# green.
+ss_plugin_ver="$(sed -n '/^[^#]/q;p' \
+  "$PLUGIN_ROOT/skills/permissions/templates/hooks/restrict-paths.sh" \
+  | sed -n 's/^# HOOK_VERSION:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)"
+
+# Drive read_hook_version directly. The decision-level tests below can only see
+# the marker through a full session-start run, which cannot distinguish "read 0"
+# from "read the right number and chose not to warn" — and the direction that
+# matters (a TEMPLATE whose marker is unreachable) is silent by construction.
+ss_tmp=$(mktemp -d)
+ss_read_version() { # $1=file -> the version the hook would read
+  local f="$ss_tmp/drive-ssver.sh"
+  {
+    awk '/^read_hook_version\(\) \{/,/^\}/' "$SESSION_START"
+    printf 'read_hook_version "$1"; printf %%s "$_hook_version"\n'
+  } > "$f"
+  bash "$f" "$1"
+}
 
 echo "[session-start: installed restrict-paths hook is stale]"
 setup_versioned_fixture 1
@@ -283,12 +317,36 @@ run_session_start
 assert_output_contains "Treats a missing marker as v0" "/optimus:permissions" "$output"
 cleanup_fixture
 
-echo "[session-start: marker past the version read bound]"
-# The version is read with a BOUNDED loop — the hook is 1400+ lines and the read
+echo "[session-start: version read bound]"
+# The version is read with a bounded loop — the hook is 1800+ lines and the read
 # runs twice on every session start, so scanning the whole file with sed was most
-# of this hook's runtime. A marker pushed past the bound therefore reads as v0,
-# and that has to fail in the SAFE direction: suggest re-running, never go
-# silent. The fixture's 999 would out-rank the plugin if it were read at all.
+# of this hook's runtime. The bound is the BANNER, not a line count: a literal
+# was a magic number duplicated in validate.sh, and a marker one line past it
+# read as v0 on BOTH sides, which `[ want -gt have ]` can never act on — the
+# staleness warning would go silent for every project instead of failing loudly.
+ss_marker_fixture() { # $1=body $2=name -> a file with that body, path echoed
+  local f="$ss_tmp/ssver-$2.sh"
+  printf '%s\n' "$1" > "$f"
+  printf '%s' "$f"
+}
+assert_equals "Marker deep in a long banner is still read" "7" \
+  "$(ss_read_version "$(ss_marker_fixture '#!/usr/bin/env bash
+# ============================================================
+# a banner
+# that runs
+# on for
+# a while
+# ============================================================
+# HOOK_VERSION: 7' banner)")"
+assert_equals "Marker below the first line of CODE reads as v0" "0" \
+  "$(ss_read_version "$(ss_marker_fixture '#!/usr/bin/env bash
+set -e
+# HOOK_VERSION: 999' belowcode)")"
+assert_equals "No marker at all reads as v0" "0" \
+  "$(ss_read_version "$(ss_marker_fixture '#!/usr/bin/env bash
+# nothing to see' nomarker)")"
+# ...and v0 has to fail in the SAFE direction end-to-end: suggest re-running,
+# never go silent. The fixture's 999 would out-rank the plugin if it were read.
 setup_fixture
 mkdir -p .claude/docs .claude/hooks
 echo "# Project"    > .claude/CLAUDE.md
@@ -296,12 +354,12 @@ echo "# Guidelines" > .claude/docs/coding-guidelines.md
 echo "# Testing"    > .claude/docs/testing.md
 {
   printf '#!/usr/bin/env bash\n'
-  printf '# filler\n%.0s' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+  printf 'set -euo pipefail\n'
   printf '# HOOK_VERSION: 999\n'
 } > .claude/hooks/restrict-paths.sh
 git add -A && git commit -q -m setup
 run_session_start
-assert_output_contains "A marker past the read bound reads as v0, not as current" \
+assert_output_contains "A marker below the banner reads as v0, not as current" \
   "/optimus:permissions" "$output"
 cleanup_fixture
 
@@ -580,14 +638,10 @@ rp_make_norp_hook() {
   printf '%s\n' "$out"
 }
 
+# The verdict assertions read as `assert_decision <label> DENY <actual>`, which is
+# worth its own name at the call site; the comparison itself is assert_equals'.
 assert_decision() { # $1=label $2=expected $3=actual
-  if [ "$2" = "$3" ]; then
-    printf "  PASS  %s\n" "$1"
-    ((pass++)) || true
-  else
-    printf "  FAIL  %s (expected %s, got %s)\n" "$1" "$2" "$3"
-    ((errors++)) || true
-  fi
+  assert_equals "$1" "$2" "$3"
 }
 
 mem="$rp_tmp/home/.claude/projects/hash/memory"
@@ -1003,6 +1057,76 @@ assert_decision "bash --rcfile takes a value, then -c" DENY \
 # ...and the letter need not be LAST in the bundle.
 assert_decision "sh -cx bundled flag denied" DENY \
   "$(rp_decision Bash command "sh -cx \\\"rm $rp_tmp/outside/a.txt\\\"")"
+# '-O <shopt>' takes a separate-word value exactly as '-o' does. Matching only
+# the lowercase letter left the shopt name to read as a script path, which ended
+# the walk — one sibling option turned both guards off.
+assert_decision "bash -O shopt then -c denied" DENY \
+  "$(rp_decision Bash command "bash -O extglob -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+assert_decision "bash +O shopt then -c denied" DENY \
+  "$(rp_decision Bash command "bash +O histexpand -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+
+# `env -S '<cmd>'` carries a whole command inside one argument exactly as
+# `sh -c` does. Listing -S among the flags whose value is skipped ended the walk
+# ON the payload, so the fragment reported "runs some other command".
+assert_decision "env -S payload is unwrapped" DENY \
+  "$(rp_decision Bash command "env -S \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+assert_decision "env --split-string= payload is unwrapped" DENY \
+  "$(rp_decision Bash command "env --split-string=\\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+# ...without claiming a fragment that merely sets variables before a real shell.
+assert_decision "env VAR=val sh -c still reaches the shell branch" DENY \
+  "$(rp_decision Bash command "env FOO=bar sh -c \\\"rm -rf $rp_tmp/outside/a.txt\\\"")"
+
+# A wrapper flag belongs in the skip list ONLY if its value is required and can
+# be a separate word. Listing an optional or attached-only flag consumes the
+# COMMAND instead: the walk ends on it, reports "runs some other command", and
+# BOTH guards go off for a spelling as ordinary as `find . | xargs -i rm ...`.
+assert_decision "xargs -i does not swallow the command" DENY \
+  "$(rp_decision Bash command "xargs -i rm -rf $rp_tmp/outside/a.txt")"
+assert_decision "xargs --replace does not swallow the command" DENY \
+  "$(rp_decision Bash command "xargs --replace rm -rf $rp_tmp/outside/a.txt")"
+assert_decision "xargs --max-lines does not swallow the command" DENY \
+  "$(rp_decision Bash command "xargs --max-lines rm -rf $rp_tmp/outside/a.txt")"
+assert_decision "sudo -h is --help, not a host flag" DENY \
+  "$(rp_decision Bash command "sudo -h rm $rp_tmp/outside/a.txt")"
+assert_decision "xargs -i does not hide a protected push" DENY \
+  "$(rp_git_decision 'xargs -i git push origin master')"
+# ...and the flags whose value IS required must still be skipped, or the value
+# itself ends the walk.
+assert_decision "xargs -I {} still reaches the rm" DENY \
+  "$(rp_decision Bash command "xargs -I {} rm -rf $rp_tmp/outside/a.txt")"
+assert_decision "xargs -L 1 still reaches the rm" DENY \
+  "$(rp_decision Bash command "xargs -L 1 rm -rf $rp_tmp/outside/a.txt")"
+assert_decision "xargs -E END still reaches the rm" DENY \
+  "$(rp_decision Bash command "xargs -E END rm -rf $rp_tmp/outside/a.txt")"
+
+# Only the LAST flag of a short cluster can take a separate-word value, so the
+# cluster has to be tested by its last letter. Testing the whole post-dash
+# remainder meant `-Hu` never matched `u`: the walk stepped onto the username,
+# ended there, and one extra letter disarmed both guards.
+assert_decision "sudo -Hu bundled user flag denied" DENY \
+  "$(rp_decision Bash command "sudo -Hu root rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo -Eu bundled user flag denied" DENY \
+  "$(rp_decision Bash command "sudo -Eu root rm $rp_tmp/outside/a.txt")"
+assert_decision "sudo -Hu does not hide a protected push" DENY \
+  "$(rp_git_decision 'sudo -Hu root git push origin master')"
+# The long spelling is still matched WHOLE — a long name is one option, not a
+# cluster, so its last letter means nothing.
+assert_decision "sudo --user long flag denied" DENY \
+  "$(rp_decision Bash command "sudo --user root rm $rp_tmp/outside/a.txt")"
+
+# An exported variable whose name matches one of the hook's own globals was
+# captured with the HOOK's value by the environment snapshot — `${!name}` reads
+# the shell namespace, not the environment. Every global is _rp_-prefixed so no
+# user-exported name can collide.
+assert_decision "exported 'root' is the caller's, not the hook's" DENY \
+  "$(rp_decision_env HOME="$rp_tmp/home" CLAUDE_PROJECT_DIR="$rp_tmp/proj" \
+     root="$rp_tmp/outside" -- Bash command 'rm -rf $root/a.txt')"
+assert_decision "exported 'cmd' is the caller's, not the hook's" DENY \
+  "$(rp_decision_env HOME="$rp_tmp/home" CLAUDE_PROJECT_DIR="$rp_tmp/proj" \
+     cmd="$rp_tmp/outside" -- Bash command 'rm -rf $cmd/a.txt')"
+assert_decision "exported 'tool_name' is the caller's, not the hook's" DENY \
+  "$(rp_decision_env HOME="$rp_tmp/home" CLAUDE_PROJECT_DIR="$rp_tmp/proj" \
+     tool_name="$rp_tmp/outside" -- Bash command 'rm -rf $tool_name/a.txt')"
 
 # A redirection names a stream. Counted as a delete target it produced an
 # unappealable deny on `rm <in-project> > /dev/null`; counted as a refspec it
@@ -1077,6 +1201,30 @@ assert_decision "braced form stays literal too" ALLOW \
 assert_decision "a mid-parse hook local stays literal" ALLOW \
   "$(rp_decision_cwd 'rm -rf $rest/x')"
 
+# A LEADING expansion this hook does not perform can hide the root: the word
+# keeps its '/' inside syntax expand_word leaves alone, so is_absolute_path
+# answered "relative" and normalize() re-based it on the project root — both the
+# out-of-project block and the precious-file block were skipped.
+assert_decision "ANSI-C quoted absolute target asks" ASK \
+  "$(rp_decision_cwd "rm \$'/etc/passwd'")"
+assert_decision "brace-hidden absolute target asks" ASK \
+  "$(rp_decision_cwd 'rm {,}/etc/passwd')"
+assert_decision "~user home target asks" ASK \
+  "$(rp_decision_cwd 'rm ~root/.ssh/id_rsa')"
+# ...but ONLY leading. Brace and $-expansion both keep whatever precedes them, so
+# a word with any prefix stays relative however it expands. Matching anywhere in
+# the word prompted on ordinary in-project cleanups AND — worse — downgraded a
+# settled hard deny, because an absolute out-of-project path that happens to
+# contain '$(' is already denied and an ask hands back a bypass.
+assert_decision "in-project brace expansion does not prompt" ALLOW \
+  "$(rp_decision_cwd 'rm -rf dist/{js,css}')"
+assert_decision "in-project command substitution does not prompt" ALLOW \
+  "$(rp_decision_cwd 'rm -rf build/$(date +%Y)')"
+assert_decision "outside path with a substitution stays DENIED" DENY \
+  "$(rp_decision_cwd "rm -rf $rp_tmp/outside/\$(whoami)")"
+assert_decision "outside path with a brace stays DENIED" DENY \
+  "$(rp_decision_cwd "rm -rf $rp_tmp/outside/{a,b}")"
+
 # A `cd` COMPOSES with the one before it. Replacing re-based every later relative
 # target on the LAST cd alone, so a chain that walked back out resolved the
 # delete outside the project and hard-DENIED an ordinary cleanup.
@@ -1088,16 +1236,84 @@ assert_decision "cd in, cd out, then rm that subtree allowed" ALLOW \
 # the parens and let it stand for the rest of the chain.
 assert_decision "subshell cd does not leak past ')'" ALLOW \
   "$(rp_decision_cwd '(cd /tmp && ./deploy.sh) && rm -rf build')"
-# `cd -` cannot be resolved, so the tracked directory is FORGOTTEN rather than
-# left stale: keeping /tmp denied an in-project cleanup with no way to override.
-assert_decision "cd - forgets the stale directory" ALLOW \
+# `cd -` returns to the PREVIOUS directory, so it is resolved rather than
+# guessed. Guessing "the project root" was right only for a chain that had moved
+# exactly once — and wrong in the unsafe direction for every chain that moved
+# twice, where the shell lands back OUTSIDE and a relative rm went with it.
+assert_decision "cd - returns to the project root" ALLOW \
   "$(rp_decision_cwd 'cd /tmp && cd - && rm -rf build')"
+assert_decision "cd - after two moves lands outside" DENY \
+  "$(rp_decision_cwd "cd $rp_tmp/outside && cd /tmp && cd - && rm a.txt")"
 # The cd tracker walks a wrapper prefix like every other command word here.
 # Matching a bare first token was the only spelling it knew.
 assert_decision "builtin cd then relative rm denied" DENY \
   "$(rp_decision_cwd "builtin cd $rp_tmp/outside && rm a.txt")"
 assert_decision "pushd then relative rm denied" DENY \
   "$(rp_decision_cwd "pushd $rp_tmp/outside && rm a.txt")"
+
+# Every spelling below moves the shell somewhere the hook used to answer "the
+# project root" for. Each one silently permitted an out-of-project delete: the
+# guess was applied to `popd`, to a bare `cd` and to any `cd` whose arguments
+# were all flags, none of which go there.
+assert_decision "popd on an empty stack does not move" DENY \
+  "$(rp_decision_cwd "cd $rp_tmp/outside && popd && rm a.txt")"
+assert_decision "bare cd goes HOME, not to the project" DENY \
+  "$(rp_decision_cwd "cd $rp_tmp/outside && cd && rm a.txt")"
+assert_decision "cd -P goes HOME, not to the project" DENY \
+  "$(rp_decision_cwd "cd $rp_tmp/outside && cd -P && rm a.txt")"
+assert_decision "cd -- goes HOME, not to the project" DENY \
+  "$(rp_decision_cwd "cd $rp_tmp/outside && cd -- && rm a.txt")"
+# ...and the pairing has to work in the other direction too, or an ordinary
+# push/pop around a build step hard-denies the cleanup after it.
+assert_decision "pushd then popd returns to the project" ALLOW \
+  "$(rp_decision_cwd "pushd $rp_tmp/outside && popd && rm -rf build")"
+assert_decision "nested pushd unwinds one level per popd" DENY \
+  "$(rp_decision_cwd "pushd $rp_tmp/outside && pushd /tmp && popd && rm a.txt")"
+# `-n` pushes or pops WITHOUT changing directory — the whole point of the flag —
+# and a '+N' operand rotates the stack rather than naming a directory. Reading
+# either as a cd turned an in-project delete into an unappealable DENY.
+assert_decision "pushd -n does not move the shell" ALLOW \
+  "$(rp_decision_cwd "pushd -n $rp_tmp/outside && rm -rf build")"
+assert_decision "popd -n does not move the shell" ALLOW \
+  "$(rp_decision_cwd 'cd build && popd -n && rm -rf out')"
+assert_decision "popd +1 is a rotation, not a directory" ALLOW \
+  "$(rp_decision_cwd 'cd build && popd +1 && rm -rf out')"
+
+# The subshell close is COUNTED, not inferred from a trailing ')'. That test was
+# wrong both ways: it banked a close for the ')' of a command substitution, which
+# released the subshell's cd early and allowed an out-of-project delete; and it
+# missed a real close followed by a redirection, which kept the cd in force and
+# hard-denied an ordinary in-project cleanup.
+assert_decision "command substitution is not a subshell close" DENY \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && echo \$(date) && rm a.txt)")"
+assert_decision "arithmetic expansion is not a subshell close" DENY \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && n=\$((1+2)) && rm a.txt)")"
+assert_decision "process substitution is not a subshell close" DENY \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && diff <(ls) <(ls) && rm a.txt)")"
+assert_decision "single-quoted paren is not a subshell close" DENY \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && echo 'a)b' && rm a.txt)")"
+# The quote marks have to survive into the command string, so they are escaped
+# for JSON here — an unescaped '\"' truncates the payload and the assertion
+# passes for the wrong reason.
+assert_decision "double-quoted paren is not a subshell close" DENY \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && echo \\\"a)b\\\" && rm a.txt)")"
+assert_decision "close followed by a redirection still closes" ALLOW \
+  "$(rp_decision_cwd "(cd $rp_tmp/outside && ls) 2>&1 && rm -rf build")"
+
+# A wrapper option can move the command with no `cd` in sight. The walk already
+# had to step over the value to reach the command word; discarding it meant the
+# relative target was resolved against the project root while the process ran
+# somewhere else entirely.
+assert_decision "sudo -D chdir is tracked" DENY \
+  "$(rp_decision_cwd "sudo -D $rp_tmp/outside rm a.txt")"
+assert_decision "sudo --chdir= chdir is tracked" DENY \
+  "$(rp_decision_cwd "sudo --chdir=$rp_tmp/outside rm a.txt")"
+assert_decision "env -C chdir is tracked" DENY \
+  "$(rp_decision_cwd "env -C $rp_tmp/outside rm a.txt")"
+# ...and it applies to THIS fragment only: the wrapper chdirs the process it
+# spawns, not the shell, so nothing after the fragment inherits it.
+assert_decision "wrapper chdir does not leak to the next fragment" ALLOW \
+  "$(rp_decision_cwd "env -C $rp_tmp/outside ls && rm -rf build")"
 
 # Deleting a protected branch was blocked; MOVING one was not, though it loses
 # exactly as much. `git update-ref` does it with no branch subcommand at all,
@@ -1126,7 +1342,13 @@ assert_decision "branch -C copy onto protected denied" DENY \
   "$(rp_git_decision 'git branch -C feature-x master')"
 assert_decision "branch --copy onto protected denied" DENY \
   "$(rp_git_decision 'git branch --copy feature-x master')"
-# A copy writes its LAST argument; the source before it is only read.
+# A copy writes its LAST argument; the source before it is only READ. The source
+# has to be a PROTECTED branch for this to test anything — with two feature names
+# the answer is ALLOW whichever end the copy arm picks, so the assertion passed
+# against a hook that had no copy arm at all. Snapshotting master before a rebase
+# is the ordinary shape it protects, and getting it wrong denies it unappealably.
+assert_decision "branch -c copy FROM a protected branch allowed" ALLOW \
+  "$(rp_git_decision 'git branch -c master backup-x')"
 assert_decision "branch -c copy FROM a feature allowed" ALLOW \
   "$(rp_git_decision 'git branch -c feature-x backup-x')"
 # `git branch -m <new>` renames the CHECKED-OUT branch — the name it destroys is

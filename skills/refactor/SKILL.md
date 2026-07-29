@@ -1,5 +1,5 @@
 ---
-description: Refactors code toward two goals — project-guideline compliance and testability (so /optimus:unit-test can safely increase coverage) — across four analysis lenses, fanned out to parallel agents when the scope warrants it. Supports "testability" or "guidelines" focus plus flexible scoping. Read-only until the user approves the plan; applied changes stay local for review. Use after /optimus:init, before /optimus:unit-test, or periodically; for an iterative loop use /optimus:deep refactor.
+description: Refactors code toward project-guideline compliance and testability (so /optimus:unit-test can safely increase coverage) across four analysis lenses, fanned out to parallel agents when the scope warrants it. Supports "testability" or "guidelines" focus plus flexible scoping. Read-only until the user approves the plan; applied changes stay local. Use after /optimus:init, before /optimus:unit-test, or for an iterative loop /optimus:deep refactor.
 disable-model-invocation: true
 argument-hint: "[testability|guidelines] [scope]"
 ---
@@ -51,7 +51,7 @@ git log --no-merges --since="3 months" --format= --name-only -- <scope-path> | s
 
 Analyze highest-churn areas first; for full-project scope on a large codebase, start with the top 10. Briefly summarize docs loaded (and any missing, with fallback status), project type, and ranked areas, then proceed immediately — do not wait for confirmation.
 
-## Step 4: Parallel analysis (4 agents)
+## Step 4: Four-lens analysis
 
 The four lenses below must all be covered. Size the fan-out to the scope: **for a handful of files, analyze them yourself in one pass** — four subagents over three files each re-read CLAUDE.md and the guideline docs to reach findings you can reach directly. Fan out for a directory or wider, where the lenses genuinely read different parts of the tree.
 

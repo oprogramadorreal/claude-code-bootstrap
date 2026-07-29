@@ -1698,6 +1698,38 @@ class TestDeepStep:
         # No tests ran on this (clean-tree) path — test_passed must be None.
         assert data["iteration_history"][-1]["test_passed"] is None
 
+    def test_string_false_flags_do_not_converge(self, tmp_path, capsys, monkeypatch):
+        # The SAME untrusted-scalar class convergence.py guards, on the OTHER
+        # orchestrator: read raw, the string "false" is truthy in Python, so
+        # deep-step terminated on iteration 1 with reason "convergence" and
+        # printed a clean tree while the subagent had just reported findings.
+        ppath = _seed_deep_progress(tmp_path)
+        monkeypatch.setattr(cli, "git_diff_has_changes", lambda *a, **k: False)
+        result = tmp_path / "result.json"
+        result.write_text(
+            json.dumps(
+                {
+                    "iteration": 1,
+                    "new_findings": [],
+                    "fixes_applied": [],
+                    "no_new_findings": "false",
+                    "no_actionable_fixes": "false",
+                }
+            ),
+            encoding="utf-8",
+        )
+        exit_code = _run(
+            "deep-step",
+            "--progress-file",
+            str(ppath),
+            "--result-file",
+            str(result),
+        )
+        assert exit_code == 0
+        assert capsys.readouterr().out.strip() != "converged"
+        data = _read_progress(ppath)
+        assert (data.get("termination") or {}).get("reason") is None
+
     def test_no_actionable(self, tmp_path, capsys, monkeypatch):
         ppath = _seed_deep_progress(tmp_path)
         # No actionable fixes were applied, so the tree is clean and the
