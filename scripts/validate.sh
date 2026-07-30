@@ -244,7 +244,7 @@ while IFS= read -r f; do
   rel_path="${f#./}"
   # Check if this file is referenced in any skill .md file:
   # 1. By full relative path (e.g., skills/init/references/foo.md)
-  # 2. By basename only (e.g., format-python.py in a table or prose)
+  # 2. By basename only (e.g., format-python.sh in a table or prose)
   # 3. By parent directory reference (e.g., templates/hooks/ covers all files
   #    inside) — skill-level files only. For root references/ and agents/
   #    files this fallback is vacuous (the strings "references/" and "agents/"
@@ -336,10 +336,6 @@ echo "[JSON templates]"
 if command -v jq &>/dev/null; then
   json_errors=""
   while IFS= read -r f; do
-    # Skip known files with intentional placeholders (e.g., <python-cmd>)
-    if grep -q '<python-cmd>' "$f" 2>/dev/null; then
-      continue
-    fi
     if ! jq empty "$f" 2>/dev/null; then
       json_errors+="  $f: invalid JSON\n"
     fi

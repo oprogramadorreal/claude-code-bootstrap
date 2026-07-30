@@ -1,28 +1,30 @@
-"""Tests for .claude/hooks/format-python.py PostToolUse hook."""
+"""Tests for .claude/hooks/format-python.sh PostToolUse hook."""
 
 import json
+import os
 import subprocess
-import sys
 from pathlib import Path
 
-import pytest
-
-HOOK_PATH = str(
-    Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "format-python.py"
-)
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HOOK_PATH = str(REPO_ROOT / ".claude" / "hooks" / "format-python.sh")
 
 
 def _run_hook(tool_input, timeout=10):
-    """Run the hook script with the given tool_input dict, return CompletedProcess."""
+    """Run the hook script with the given tool_input dict, return CompletedProcess.
+
+    CLAUDE_PROJECT_DIR points at the repo root so the hook resolves black/isort
+    from this repo's .venv, exactly as it would in a real session.
+    """
     payload = json.dumps({"tool_input": tool_input})
     return subprocess.run(
-        [sys.executable, HOOK_PATH],
+        ["bash", HOOK_PATH],
         input=payload,
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         timeout=timeout,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(REPO_ROOT)},
     )
 
 

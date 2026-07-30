@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-python.py",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-python.sh",
             "timeout": 30
           }
         ]

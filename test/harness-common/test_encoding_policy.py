@@ -18,8 +18,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 POLICED_FILES = [
     *sorted((REPO_ROOT / "scripts" / "harness_common").glob("*.py")),
-    REPO_ROOT / ".claude" / "hooks" / "format-python.py",
-    REPO_ROOT / "skills" / "init" / "templates" / "hooks" / "format-python.py",
 ]
 
 

@@ -20,7 +20,7 @@ test.cmd                                                                        
 ## Test Structure
 
 - `test/harness-common/` — tests for the orchestrator CLI (`scripts/harness_common/cli.py`) and its shared modules.
-- `test/test_format_python_hook.py` — tests for the repo's `.claude/hooks/format-python.py` PostToolUse hook (needs `black`/`isort` on PATH — activate the venv first).
+- `test/test_format_python_hook.py` — tests for the repo's `.claude/hooks/format-python.sh` PostToolUse hook (needs `black`/`isort` in the repo's `.venv` — `install.cmd` sets that up — or on PATH).
 - Test files mirror the module they cover (`test_<module>.py`).
 
 ## Writing Tests

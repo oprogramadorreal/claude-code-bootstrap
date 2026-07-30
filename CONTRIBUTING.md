@@ -107,7 +107,7 @@ Each assertion names itself in the output. The rationale for individual guards l
 
 ### Python unit tests (CI)
 
-Unit tests for the Python code in the repo: the orchestrator CLI and its supporting modules under `scripts/harness_common/`, plus the `.claude/hooks/format-python.py` formatter hook.
+Unit tests for the orchestrator CLI and its supporting modules under `scripts/harness_common/`, plus the `.claude/hooks/format-python.sh` formatter hook.
 
 **First-time setup:**
 
