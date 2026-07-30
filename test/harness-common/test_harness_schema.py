@@ -217,7 +217,9 @@ def test_no_actionable_fixes_matches_the_findings_it_describes():
         pytest.param(COVERAGE_SCHEMA, COVERAGE_FIXTURE, COVERAGE_DOC, id="coverage"),
     ],
 )
-def test_docs_route_subagents_to_the_schema_and_fixture(schema_path, fixture_path, doc_path):
+def test_docs_route_subagents_to_the_schema_and_fixture(
+    schema_path, fixture_path, doc_path
+):
     """The doc must send the subagent to the schema and the fixture, by real path.
 
     The docs used to inline a third copy of the shape, which is why the older

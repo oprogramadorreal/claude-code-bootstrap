@@ -20,7 +20,7 @@ test.cmd                                                                        
 ## Test Structure
 
 - `test/harness-common/` — tests for the orchestrator CLI (`scripts/harness_common/cli.py`) and its shared modules.
-- `test/test_format_python_hook.py` — tests for the repo's `.claude/hooks/format-python.sh` PostToolUse hook (needs `black`/`isort` in the repo's `.venv` — `install.cmd` sets that up — or on PATH).
+- `test/test_format_python_hook.py` — tests for the repo's `.claude/hooks/format-python.sh` PostToolUse hook. This module shells out to `bash`, so it needs Git Bash on Windows; it resolves the interpreter through `harness_common.runner._find_bash` rather than a bare `bash`, because a WSL `bash` earlier on PATH cannot open Windows-style paths. Most cases plant stub formatters and need nothing installed — only the few that exercise real formatting need `black`/`isort` in the repo's `.venv` or on PATH, and they skip when absent.
 - Test files mirror the module they cover (`test_<module>.py`).
 
 ## Writing Tests
@@ -36,4 +36,4 @@ test-coverage.cmd                                                               
 python -m pytest test/harness-common/ --cov scripts/harness_common --cov-report=term-missing   # direct
 ```
 
-First-time setup: `install.cmd` creates `.venv` and installs the dev dependencies.
+First-time setup: on Windows, `install.cmd` creates `.venv` and installs the dev dependencies. There is no `install.sh` — on macOS/Linux run `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. Either way `bash` must be on PATH for the hook tests (already there on macOS/Linux; Git Bash on Windows).

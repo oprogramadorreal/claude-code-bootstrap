@@ -16,9 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-POLICED_FILES = [
-    *sorted((REPO_ROOT / "scripts" / "harness_common").glob("*.py")),
-]
+POLICED_FILES = sorted((REPO_ROOT / "scripts" / "harness_common").glob("*.py"))
 
 
 def _is_true(node):
@@ -41,9 +39,10 @@ def _violations(path):
 
 
 def test_policed_files_exist():
+    # A bare glob can only yield paths that exist, so the guard worth keeping is
+    # that it matched anything at all: a renamed directory turns the policy below
+    # into a silent no-op that still reports as passing.
     assert POLICED_FILES, "policy file list resolved to nothing"
-    missing = [str(p) for p in POLICED_FILES if not p.exists()]
-    assert not missing, f"policed files moved or deleted: {missing}"
 
 
 def test_text_mode_subprocess_calls_pin_utf8():

@@ -1,4 +1,8 @@
 pytest
 pytest-cov
-black
-isort
+# black and isort are pinned exactly, unlike the test runners above, because
+# .claude/hooks/format-python.sh rewrites shared .py files with whatever version
+# it resolves. Unpinned, two contributors on different majors reformat each
+# other's code back and forth and CI is a third opinion. Bump deliberately.
+black==26.5.1
+isort==8.0.1

@@ -22,7 +22,15 @@ jobs:
       - run: bash scripts/test-hooks.sh
 
   test-python:
-    runs-on: ubuntu-latest
+    # Windows is not decoration here: format-python.sh probes .venv/Scripts
+    # before .venv/bin only on Windows, and that whole branch is unreachable on
+    # a Linux runner — the bug it guards against could be reintroduced and every
+    # ubuntu job would still be green.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -124,11 +124,19 @@ check "No ref field in marketplace.json" \
 # alone, leaving this repo running stale security logic). A template-only fix
 # leaves this repo unprotected; a .claude/-only fix ships nothing to users.
 # Guarded like every other optional tool below: a missing cmp must SKIP, not FAIL.
+#
+# format-python.sh is the same arrangement with the coverage inverted: the
+# pytest suite drives the .claude/ copy and scripts/test-hooks.sh drives the
+# template, so each is only as good as this pin. It is the one format-* hook
+# with logic beyond parse-guard-invoke — it resolves black and isort out of a
+# virtualenv — which is exactly where a template-only or .claude/-only fix hurts.
 if command -v cmp &>/dev/null; then
   check "restrict-paths hook copies are in sync" \
     cmp -s .claude/hooks/restrict-paths.sh skills/permissions/templates/hooks/restrict-paths.sh
+  check "format-python hook copies are in sync" \
+    cmp -s .claude/hooks/format-python.sh skills/init/templates/hooks/format-python.sh
 else
-  echo "  SKIP  restrict-paths hook sync check (cmp not installed)"
+  echo "  SKIP  hook sync checks (cmp not installed)"
 fi
 
 # The hook carries a HOOK_VERSION that the SessionStart hook compares against a
