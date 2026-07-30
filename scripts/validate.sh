@@ -124,11 +124,19 @@ check "No ref field in marketplace.json" \
 # alone, leaving this repo running stale security logic). A template-only fix
 # leaves this repo unprotected; a .claude/-only fix ships nothing to users.
 # Guarded like every other optional tool below: a missing cmp must SKIP, not FAIL.
+#
+# format-python.sh is the same arrangement with the coverage inverted: the
+# pytest suite drives the .claude/ copy and scripts/test-hooks.sh drives the
+# template, so each is only as good as this pin. It is the one format-* hook
+# with logic beyond parse-guard-invoke — it resolves black and isort out of a
+# virtualenv — which is exactly where a template-only or .claude/-only fix hurts.
 if command -v cmp &>/dev/null; then
   check "restrict-paths hook copies are in sync" \
     cmp -s .claude/hooks/restrict-paths.sh skills/permissions/templates/hooks/restrict-paths.sh
+  check "format-python hook copies are in sync" \
+    cmp -s .claude/hooks/format-python.sh skills/init/templates/hooks/format-python.sh
 else
-  echo "  SKIP  restrict-paths hook sync check (cmp not installed)"
+  echo "  SKIP  hook sync checks (cmp not installed)"
 fi
 
 # The hook carries a HOOK_VERSION that the SessionStart hook compares against a
@@ -244,7 +252,7 @@ while IFS= read -r f; do
   rel_path="${f#./}"
   # Check if this file is referenced in any skill .md file:
   # 1. By full relative path (e.g., skills/init/references/foo.md)
-  # 2. By basename only (e.g., format-python.py in a table or prose)
+  # 2. By basename only (e.g., format-python.sh in a table or prose)
   # 3. By parent directory reference (e.g., templates/hooks/ covers all files
   #    inside) — skill-level files only. For root references/ and agents/
   #    files this fallback is vacuous (the strings "references/" and "agents/"
@@ -336,10 +344,6 @@ echo "[JSON templates]"
 if command -v jq &>/dev/null; then
   json_errors=""
   while IFS= read -r f; do
-    # Skip known files with intentional placeholders (e.g., <python-cmd>)
-    if grep -q '<python-cmd>' "$f" 2>/dev/null; then
-      continue
-    fi
     if ! jq empty "$f" 2>/dev/null; then
       json_errors+="  $f: invalid JSON\n"
     fi

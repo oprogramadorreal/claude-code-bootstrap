@@ -409,7 +409,9 @@ cleanup_fixture
 echo
 echo "[formatter hooks: shell-based hooks parse JSON input correctly]"
 setup_fixture
-# Test with format-rust.sh (representative of all bash-based hooks)
+# format-rust.sh stands in for the hooks whose only logic is parse-guard-invoke.
+# format-python.sh resolves its formatters from a virtualenv and gets its own
+# section below.
 # Create a dummy rustfmt that just succeeds
 mkdir -p bin
 cat > bin/rustfmt <<'MOCK'
@@ -435,6 +437,71 @@ fi
 echo "hello" > test.txt
 output=$(echo '{"tool_input":{"file_path":"test.txt"}}' | bash "$PLUGIN_ROOT/skills/init/templates/hooks/format-rust.sh" 2>&1 || true)
 assert_output_empty "Rust hook skips non-.rs file" "$output"
+cleanup_fixture
+
+echo "[formatter hooks: python hook resolves formatters from a project venv]"
+setup_fixture
+# The TEMPLATE is what users install. test/test_format_python_hook.py exercises
+# the dogfooded .claude/ copy and scripts/validate.sh pins the two together, so
+# between them both copies are covered.
+FORMAT_PY_HOOK="$PLUGIN_ROOT/skills/init/templates/hooks/format-python.sh"
+export FORMAT_PY_LOG="$tmpdir/formatters.log"
+: > "$FORMAT_PY_LOG"
+
+# Windows probes Scripts/ first and POSIX probes bin/ first — plant both so the
+# case runs identically either way.
+for sub in bin Scripts; do
+  mkdir -p ".venv/$sub"
+  for tool in black isort; do
+    printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s $*" >> "$FORMAT_PY_LOG"\n' "$tool" > ".venv/$sub/$tool"
+    chmod +x ".venv/$sub/$tool"
+  done
+done
+
+# Nested file, venv at the project root: the walk up has to find it.
+mkdir -p pkg/src
+echo "x=1" > pkg/src/app.py
+output=$(printf '{"tool_input":{"file_path":"%s/pkg/src/app.py"}}' "$tmpdir" |
+  CLAUDE_PROJECT_DIR="$tmpdir" bash "$FORMAT_PY_HOOK" 2>&1 || true)
+assert_output_empty "Python hook is silent when both formatters resolve" "$output"
+assert_output_contains "Python hook runs black from the project venv" \
+  "black --quiet" "$(cat "$FORMAT_PY_LOG")"
+assert_output_contains "Python hook runs isort from the same venv" \
+  "isort --quiet --profile black" "$(cat "$FORMAT_PY_LOG")"
+
+# Non-ASCII arrives as raw UTF-8 (JSON.stringify does not escape it), and must
+# pass through the regex and the *.py guard intact.
+: > "$FORMAT_PY_LOG"
+mkdir -p "café"
+echo "x=1" > "café/app.py"
+printf '{"tool_input":{"file_path":"%s/café/app.py"}}' "$tmpdir" |
+  CLAUDE_PROJECT_DIR="$tmpdir" bash "$FORMAT_PY_HOOK" >/dev/null 2>&1 || true
+assert_output_contains "Python hook handles a raw non-ASCII file_path" \
+  "café/app.py" "$(cat "$FORMAT_PY_LOG")"
+
+# A non-.py file must not reach a formatter at all.
+: > "$FORMAT_PY_LOG"
+echo "hello" > notes.txt
+output=$(printf '{"tool_input":{"file_path":"%s/notes.txt"}}' "$tmpdir" |
+  CLAUDE_PROJECT_DIR="$tmpdir" bash "$FORMAT_PY_HOOK" 2>&1 || true)
+assert_output_empty "Python hook skips a non-.py file" "$output$(cat "$FORMAT_PY_LOG")"
+
+# A venv holding only black must not borrow isort from PATH — mismatched
+# versions produce an import order the project's own isort then rejects.
+: > "$FORMAT_PY_LOG"
+mkdir -p solo/.venv/bin solo/.venv/Scripts
+for sub in bin Scripts; do
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "black $*" >> "$FORMAT_PY_LOG"\n' > "solo/.venv/$sub/black"
+  chmod +x "solo/.venv/$sub/black"
+done
+echo "x=1" > solo/app.py
+output=$(printf '{"tool_input":{"file_path":"%s/solo/app.py"}}' "$tmpdir" |
+  CLAUDE_PROJECT_DIR="$tmpdir/solo" bash "$FORMAT_PY_HOOK" 2>&1 || true)
+assert_output_contains "Python hook reports isort missing instead of pairing with PATH" \
+  "isort not found" "$output"
+assert_output_not_contains "Python hook does not invoke an unpaired isort" \
+  "isort " "$(cat "$FORMAT_PY_LOG")"
+unset FORMAT_PY_LOG
 cleanup_fixture
 
 echo "[formatter hooks: node hook parses JSON input correctly]"

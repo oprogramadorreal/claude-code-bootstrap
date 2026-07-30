@@ -93,7 +93,7 @@ Runs on every push and PR to master. Catches broken cross-references, syntax err
 bash scripts/validate.sh
 ```
 
-Every check prints its own name as it runs, so the script is the list. Two invariants a contributor has to know before editing it: section 17 pins only strings a program parses or that cross a conversation boundary — never the wording of a skill's own instructions — and `.claude/hooks/restrict-paths.sh` must stay byte-identical to the template users install, with `HOOK_VERSION` bumped on every behavioural change so the SessionStart hook can spot projects running a stale copy.
+Every check prints its own name as it runs, so the script is the list. Two invariants a contributor has to know before editing it: section 17 pins only strings a program parses or that cross a conversation boundary — never the wording of a skill's own instructions — and the dogfooded hooks must stay byte-identical to the templates users install — `.claude/hooks/restrict-paths.sh` (with `HOOK_VERSION` bumped on every behavioural change, so the SessionStart hook can spot projects running a stale copy) and `.claude/hooks/format-python.sh`. Fix both copies or neither: a template-only fix leaves this repo running stale logic, and a `.claude/`-only fix ships nothing to users.
 
 ### Hook execution tests (CI)
 
@@ -107,13 +107,15 @@ Each assertion names itself in the output. The rationale for individual guards l
 
 ### Python unit tests (CI)
 
-Unit tests for the Python code in the repo: the orchestrator CLI and its supporting modules under `scripts/harness_common/`, plus the `.claude/hooks/format-python.py` formatter hook.
+Unit tests for the orchestrator CLI and its supporting modules under `scripts/harness_common/`, plus the `.claude/hooks/format-python.sh` formatter hook.
 
 **First-time setup:**
 
 ```shell
-install.cmd                    # creates .venv and installs dev dependencies
+install.cmd                    # Windows: creates .venv and installs dev dependencies
 ```
+
+There is no `install.sh`; on macOS/Linux run `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`. The formatter-hook tests shell out to `bash`, so Windows contributors need Git Bash on PATH — the module resolves it via `harness_common.runner._find_bash`, which deliberately skips a WSL `bash` since it cannot open Windows-style paths.
 
 **Run tests:**
 

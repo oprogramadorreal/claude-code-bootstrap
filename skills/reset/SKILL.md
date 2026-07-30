@@ -24,7 +24,7 @@ Inventory optimus-managed files, listing only what exists:
 
 - `.claude/CLAUDE.md`, `.claude/.optimus-version`, `.claude/settings.json`
 - `.claude/docs/{coding-guidelines,testing,styling,architecture,skill-writing-guidelines}.md`
-- `.claude/hooks/format-*` — the plugin's template hooks plus any custom `format-<language>.sh` from init's unsupported-stack fallback
+- `.claude/hooks/format-*` — the plugin's template hooks, any custom `format-<language>.sh` from init's unsupported-stack fallback, and the legacy `format-python.py` installed by optimus <= 3.5.0
 - `.claude/hooks/restrict-paths.sh`
 - `.claude/agents/{code-simplifier,test-guardian}.md` (legacy — installed by older optimus versions)
 - Monorepo: subproject `CLAUDE.md` and `docs/{coding-guidelines,testing,styling,architecture}.md` (subproject `coding-guidelines.md` exists only when init found the subproject's conventions differ from root — classify it via the near-exact-pair rule below)
@@ -38,7 +38,7 @@ For each file, check git tracking with `git ls-files --error-unmatch <file>` (tr
 
 Classify with shell comparison — do not read file bodies into context:
 
-**Verbatim templates.** The template is the same-named file in the plugin: `format-*` hooks → `$CLAUDE_PLUGIN_ROOT/skills/init/templates/hooks/`, `restrict-paths.sh` → `$CLAUDE_PLUGIN_ROOT/skills/permissions/templates/hooks/`, legacy `.claude/agents/*.md` → `$CLAUDE_PLUGIN_ROOT/agents/`. Run `cmp -s <file> <template>`: identical → `UNMODIFIED`, else `MODIFIED`. A custom `format-<language>.sh` with no same-named template is `LIKELY_GENERATED` if it follows the shell-hook pattern (shebang, JSON stdin parsed into a file-path variable, file-extension guard, formatter invocation), else `MODIFIED`.
+**Verbatim templates.** The template is the same-named file in the plugin: `format-*` hooks → `$CLAUDE_PLUGIN_ROOT/skills/init/templates/hooks/`, `restrict-paths.sh` → `$CLAUDE_PLUGIN_ROOT/skills/permissions/templates/hooks/`, legacy `.claude/agents/*.md` → `$CLAUDE_PLUGIN_ROOT/agents/`. Run `cmp -s <file> <template>`: identical → `UNMODIFIED`, else `MODIFIED`. A custom `format-<language>.sh` with no same-named template is `LIKELY_GENERATED` if it follows the shell-hook pattern (shebang, JSON stdin parsed into a file-path variable, file-extension guard, formatter invocation), else `MODIFIED`. **Retired templates:** `format-python.py` (replaced by `format-python.sh` in 3.5.1) has no template left to compare against — classify it `LIKELY_GENERATED` on the strength of its name alone, never `MODIFIED`. Reporting a retired plugin file as a user edit recommends keeping a hook that cannot run, and Step 4 then keeps its settings entry too, because the rule there only removes entries whose hook file is gone.
 
 **Near-exact pair** — `docs/coding-guidelines.md` and `docs/skill-writing-guidelines.md`: line 1 carries init's `[PROJECT NAME]` substitution; the rest is verbatim from the same-named file under `$CLAUDE_PLUGIN_ROOT/skills/init/templates/docs/`. Run `tail -n +2 <file> | diff -q - <(tail -n +2 <template>)`: identical → `UNMODIFIED`, else `MODIFIED`.
 

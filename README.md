@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.5.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.5.1-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -103,6 +103,14 @@ If you see `SSL certificate OpenSSL verify result: unable to get local issuer ce
 ```shell
 git config --global http.sslBackend schannel
 ```
+
+### Upgrading from 3.5.0 or earlier
+
+3.5.1 replaced the Python formatter hook `.claude/hooks/format-python.py` with a portable bash one, `format-python.sh`, because the Python version needed a `python` on PATH — which on Windows hits the Store alias stub and fails on every edit.
+
+Re-running `/optimus:init` performs the swap, including deleting the old file and its `settings.json` entry. To do it by hand instead: delete `.claude/hooks/format-python.py` and remove the `PostToolUse` entry whose command references it. Leaving it in place means two Python hooks fire per edit.
+
+The replacement resolves `black` and `isort` from a `.venv`, `venv`, or `env` directory at or above the edited file, then from PATH — so a virtualenv kept outside the project (Poetry's default, pipenv, conda) needs the formatters on PATH instead. The hook prints a one-line notice to stderr when it cannot find them.
 
 ### Upgrading from 2.x
 
