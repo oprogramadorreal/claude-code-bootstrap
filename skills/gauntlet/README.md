@@ -1,6 +1,6 @@
 # optimus:gauntlet
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that runs a **Gauntlet Loop**: give it an ambitious goal, and it turns that goal into a builder/critic improvement loop judged against a concrete quality bar — then keeps looping until the output beats the bar or you stop the run.
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that runs a **[Gauntlet Loop](https://somethingbig.ai/gauntlet-loop)**: give it an ambitious goal, and it turns that goal into a builder/critic improvement loop judged against a concrete quality bar — then keeps looping until the output beats the bar or you stop the run.
 
 Instead of producing one decent result and stopping, the agent must keep comparing its work against a much higher standard that it cannot talk its way around.
 
@@ -8,7 +8,7 @@ Instead of producing one decent result and stopping, the agent must keep compari
 
 1. **Choose the bar** — picks the strongest concrete reference an agent can actually inspect and compare its work against: real screenshots, a reference implementation, a test suite, best-in-class examples. If you supplied references, it uses the strongest; otherwise it proposes one. The bar is then resolved into something a fresh agent can actually open — paths, a URL, a command, or saved screenshots — since critics start with no context.
 2. **Write the gauntlet prompt** — a short, minimal prompt in the register of the Claude-of-Duty exemplar: the goal and the bar, plus your project's own constraint docs, with the approach, decomposition, and round count left to the lead agent.
-3. **Confirm** — shows you the bar and the prompt, warns if your working tree has uncommitted changes, and asks for confirmation (with **Cancel**) before starting, since gauntlet runs are long and spawn many subagents.
+3. **Confirm** — shows you the bar and the prompt, warns if your working tree has uncommitted changes, and asks for confirmation (with **Cancel**) before starting, since gauntlet runs are long and spawn many subagents. A fourth option, **Copy as /goal prompt**, skips execution: the skill seeds the progress page, then prints the same prompt as one paste-ready [`/goal`](https://code.claude.com/docs/en/goal) message for a fresh session — the prompt plus a transcript-verifiable completion condition, with a checklist of the manual steps the new session needs. The critics remain the judges; `/goal`'s per-turn evaluator only keeps that session alive until their verdicts and green tests have been shown in the conversation.
 4. **Run** — the lead agent divides the goal into the smallest pieces that can be improved and judged independently. Each piece gets a builder and a separate critic with fresh context. The critic inspects the real output, compares it with the bar — blind A/B where the artifacts allow it — and returns either *beats the bar* or the single biggest remaining gap, which goes back for another round. A live progress page at `.claude/gauntlet-progress.html` (or `.md`) shows the work evolving and doubles as the anchor a later session resumes from.
 
 ## Principles
@@ -27,6 +27,7 @@ This skill is part of the [optimus](https://github.com/oprogramadorreal/optimus-
 
 - `/optimus:gauntlet <goal>` — proposes a bar, writes the prompt, confirms, runs
 - `/optimus:gauntlet <goal> [possible references or quality bars]` — considers your references when choosing the bar
+- At the confirmation step, choose **Copy as /goal prompt** to run the gauntlet in a fresh conversation instead: the skill seeds `.claude/gauntlet-progress.md`, prints one message starting with `/goal`, and stops. In the new session — opened in the directory that holds the progress page and bar materials — set `/effort` → ultracode and pick a permission mode **before** pasting; pasting starts the run immediately. Stop it with `/goal clear` (Esc only interrupts the current turn); bare `/goal` shows turn and token spend.
 
 Examples:
 
@@ -46,6 +47,8 @@ Gauntlet is the most expensive skill in the plugin and the only one with no roun
 
 The skill confirms before starting, warns if your working tree is dirty, and offers **Cancel**. Once running, press Esc to stop — the progress page holds the goal, the resolved bar, the prompt, and every piece's round history, so a later session can pick the run back up. To bound a run up front, narrow the goal or name fewer pieces in the prompt at the confirmation step.
 
+The **Copy as /goal prompt** path is unattended-leaning: `/goal` re-prompts the agent after every turn until the completion condition holds, and a plateaued run never auto-stops — you stop it with `/goal clear`. A goal does not change permissions, so choose a permission mode in the fresh session deliberately: without auto-accept the run stalls at its first prompt; with it, nothing interrupts spending. The per-turn evaluator's own cost is negligible; the run itself is the same open-ended builder/critic loop as the in-session path.
+
 ## When to Use
 
 - Long-horizon build, port, or polish goals where "done" means matching a reference
@@ -54,7 +57,7 @@ The skill confirms before starting, warns if your working tree is dirty, and off
 ## When NOT to Use
 
 - **Fixing existing code toward internal standards** — use `/optimus:deep` (review | refactor | coverage), the deterministic resumable fix loop
-- **Lightweight "work until a condition holds"** — Claude Code's native `/goal`
+- **Lightweight "work until a condition holds"** — Claude Code's native `/goal` on its own, with no builder/critic protocol (gauntlet's **Copy as /goal prompt** option is the reverse: the full protocol delivered through `/goal`)
 - **Small, well-specified tasks** — `/optimus:tdd` or a plain prompt is cheaper
 
 ## Skill Structure
@@ -62,10 +65,16 @@ The skill confirms before starting, warns if your working tree is dirty, and off
 | File | Purpose |
 |---|---|
 | `SKILL.md` | Skill definition |
+| `references/goal-handoff.md` | The **Copy as /goal prompt** path — seeding, message build, completion condition, user checklist; read only when that option is chosen |
+
+## Acknowledgements
+
+The Gauntlet Loop method — an ambitious goal, a concrete reference bar, and builder/critic pairs with fresh context that loop until the output beats the bar — comes from [The Gauntlet Loop](https://somethingbig.ai/gauntlet-loop) by Matt Shumer, as does the Claude-of-Duty exemplar the generated prompt is modeled on. This skill adapts his meta-prompt workflow into a Claude Code command, adding bar resolution to on-disk materials, project constraint docs, a dirty-tree warning with a confirmation step, a resumable progress page, and an optional `/goal` handoff for fresh-session runs.
 
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 1.0.33+ (plugin support)
+- Claude Code 2.1.139+ with the trust dialog accepted and hooks enabled — only for the **Copy as /goal prompt** option
 - Subagent support; ultracode recommended for serious runs
 
 ## License

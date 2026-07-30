@@ -3,7 +3,8 @@ description: >-
   Runs a Gauntlet Loop: turns an ambitious goal and optional quality references
   into a minimal builder/critic prompt judged against a concrete comparison
   bar, confirms with the user, then executes it as the lead agent until the
-  output beats the bar or the user stops the run. Use for long-horizon goals
+  output beats the bar or the user stops the run — or emits it as a
+  paste-ready /goal prompt for a fresh session. Use for long-horizon goals
   judged against an inspectable reference. Long-running; spawns many subagents
   and edits project files.
 disable-model-invocation: true
@@ -104,21 +105,26 @@ prompt, and the two-way verdict all survive to the final draft.
 ## 3. Confirm and run
 
 Show the user the bar and the prompt. Recommend ultracode for serious runs
-(`/effort` → ultracode), noting it has to be set before approving because the
-run starts immediately after.
+(`/effort` → ultracode). On "Start the run" it must be set before approving
+because the run starts immediately after; on "Copy as /goal prompt" the user
+sets it later, in the fresh session.
 
 Run `git status --porcelain`. If it reports anything, say so before asking:
 this run rewrites the same files for hours with no per-change approval, and
 uncommitted work will not survive it. Offer `/optimus:worktree` or committing
-first.
+first — on the handoff path, before pasting: the danger window is the future
+session, not this one.
 
 Then use `AskUserQuestion` — header "Gauntlet", question confirming the start
 of a long-running multi-agent run that spawns many subagents, edits files
 without per-change approval, and consumes credits in proportion to how long it
-runs — with options "Start the run", "Adjust first", and "Cancel". Apply
-requested adjustments and ask again. On "Cancel", stop.
+runs — with options "Start the run", "Adjust first", "Copy as /goal prompt",
+and "Cancel". Apply requested adjustments and ask again. On "Cancel", stop.
+On "Copy as /goal prompt", read
+`$CLAUDE_PLUGIN_ROOT/skills/gauntlet/references/goal-handoff.md` and follow
+it: the run is handed to a fresh session instead of executed here.
 
-On approval, execute the prompt yourself as the lead agent. There is no
+On "Start the run", execute the prompt yourself as the lead agent. There is no
 arbitrary final round: the run ends when the output beats the bar or when the
 user stops it. Long runs can leave pieces that are individually good but
 slightly inconsistent with each other — offer a smoothing pass before closing.
