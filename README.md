@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.4.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.5.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -131,6 +131,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for project structure, skill anatomy, fea
 ## Acknowledgements
 
 The `/optimus:prompt` skill's prompt engineering techniques are adapted from [prompt-master](https://github.com/nidhinjs/prompt-master) by [@nidhinjs](https://github.com/nidhinjs).
+
+The `/optimus:gauntlet` skill implements the [Gauntlet Loop](https://somethingbig.ai/gauntlet-loop) method by Matt Shumer.
 
 ## Research & References
 
