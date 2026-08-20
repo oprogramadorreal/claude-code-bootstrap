@@ -31,10 +31,13 @@ The condition, in a few lines: a small per-turn evaluator keeps the session
 alive until the condition holds — it reads only the conversation and runs no
 tools, a keep-alive floor, not a judge; the fresh-context critics stay the
 only judges. So every turn ends by pasting the progress page's
-piece/round/verdict table, each critic's latest verdict verbatim, and the tail
-of the test output with its exit status. The goal is met ONLY when every piece
-in the table has a verbatim "beats the bar" from its critic, the suite exits
-0, and both are shown in the most recent turn. The table is never empty once
+piece/round/verdict table, each critic's latest verdict verbatim, the tail
+of the test output with its exit status, and the current branch with its
+`git status --porcelain` output. The goal is met ONLY when every piece in
+the table has a verbatim "beats the bar" from its critic, the integration
+critic says the same of the assembled whole, the suite exits 0 on a feature
+branch whose porcelain status is clean, and all of it is shown in the most
+recent turn. The table is never empty once
 pieces are chosen, and no piece may be removed, renamed, or merged to satisfy
 the condition; the lead agent's own assessment never counts. A plateau is not
 completion: report it plainly each turn and keep working on the rest until the
@@ -63,7 +66,7 @@ Print the message with this checklist above it, paste last:
 - stop with `/goal clear` — Esc only interrupts the turn, the goal stays armed
   until cleared; bare `/goal` shows spend; the goal survives `--resume`;
   `/clear` kills it
-- when the goal clears, review and commit (`/optimus:commit`, then
-  `/optimus:code-review` in a fresh conversation)
+- when the goal clears, commit any leftovers (`/optimus:commit`), then review
+  the run's branch (`/optimus:code-review` in a fresh conversation)
 
 Then stop. The fresh session owns the run.

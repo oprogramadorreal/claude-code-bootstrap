@@ -5,8 +5,9 @@ description: >-
   bar, confirms with the user, then executes it as the lead agent until the
   output beats the bar or the user stops the run — or emits it as a
   paste-ready /goal prompt for a fresh session. Use for long-horizon goals
-  judged against an inspectable reference. Long-running; spawns many subagents
-  and edits project files.
+  judged against an inspectable reference. Long-running; spawns many
+  subagents, edits project files, and commits finished pieces to a dedicated
+  feature branch.
 disable-model-invocation: true
 argument-hint: "<goal> [possible references or quality bars]"
 ---
@@ -76,19 +77,36 @@ builder: not its report, its reasoning, or its round history. A critic that
 cannot open the bar grades from memory, which is the builder-grades-itself
 failure this loop exists to prevent.
 
+Critics judge the artifact as a user would meet it — run, rendered, executed —
+never the builder's summary, and never source review alone when the work is
+visual or behavioral. Anything presented as computed — metrics, simulation
+output, live data — must trace to real computation: staged output that merely
+looks right is a gap, not a pass.
+
 Each critic returns one of two verdicts: **beats the bar**, or the single
 biggest remaining gap, which goes back for another round. It compares directly
 against the bar — blind A/B when the artifacts allow it, side by side
 otherwise. A piece is done when its critic returns *beats the bar*.
 
-The run ends when every piece is done or when the user stops it — and in
-practice it is usually the second. Never end it on your own: if a piece's last
+Pieces that individually beat the bar can still disagree with each other, so
+when every piece is done, one last fresh critic judges the assembled whole
+against the same bar, and any gap it names goes back for a final round. The
+run ends when that integration critic returns *beats the bar* or when the
+user stops it — and in practice it is usually the second. Never end it on
+your own: if a piece's last
 two rounds close no gap its critic can still name, report the plateau to the
 user and let them decide whether it is worth more compute. Stopping is their
 call, not yours.
 
 If the project has a test command, the suite stays green: a piece is not done
 while its tests fail.
+
+The run never touches the default branch: before the first edit, the lead
+agent creates and switches to a descriptively named feature branch (a
+worktree made at confirmation already is one). Each piece is committed when
+its critic returns *beats the bar* and the suite is green — focused commits
+at judged milestones, never one giant commit at the end — and the run never
+pushes, merges, or opens a PR unless the user asked for it.
 
 Have the lead agent maintain a simple live progress page that shows the work
 evolving over time — a rendered HTML page when the work is visual, markdown
@@ -100,7 +118,8 @@ session resumes from.
 Do not prescribe the architecture, exact decomposition, or a fixed number of
 rounds. Keep the prompt short, but short is a budget for phrasing, not licence
 to drop guarantees: fresh-context critics, the bar materials in every critic
-prompt, and the two-way verdict all survive to the final draft.
+prompt, the two-way verdict, judging the running artifact, the integration
+critic, and the branch-and-commit rules all survive to the final draft.
 
 ## 3. Confirm and run
 
@@ -126,8 +145,7 @@ it: the run is handed to a fresh session instead of executed here.
 
 On "Start the run", execute the prompt yourself as the lead agent. There is no
 arbitrary final round: the run ends when the output beats the bar or when the
-user stops it. Long runs can leave pieces that are individually good but
-slightly inconsistent with each other — offer a smoothing pass before closing.
+user stops it.
 
 Close on the outcome — uncommitted work → `/optimus:commit`; already committed
 → `/optimus:pr`, then `/optimus:code-review` in a fresh conversation — and say
