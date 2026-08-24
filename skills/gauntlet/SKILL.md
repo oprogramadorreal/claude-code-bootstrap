@@ -119,7 +119,10 @@ Do not prescribe the architecture, exact decomposition, or a fixed number of
 rounds. Keep the prompt short, but short is a budget for phrasing, not licence
 to drop guarantees: fresh-context critics, the bar materials in every critic
 prompt, the two-way verdict, judging the running artifact, the integration
-critic, and the branch-and-commit rules all survive to the final draft.
+critic, and the branch-and-commit rules all survive to the final draft. Short
+also has a number: keep the prompt under 2,000 characters, because the /goal
+handoff must fit this exact prompt plus a completion condition into /goal's
+4,000-character message cap, and the condition needs the rest.
 
 ## 3. Confirm and run
 
