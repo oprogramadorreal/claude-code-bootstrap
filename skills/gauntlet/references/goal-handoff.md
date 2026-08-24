@@ -45,10 +45,19 @@ user stops the goal — how to stop lives in their checklist, never in this
 message. In a testless project drop the test clauses from condition and
 evidence alike.
 
-`/goal` caps the condition — everything after the prefix — at 4,000
-characters. Target ~3,000, verified with a real count (`wc -c`), not an
-estimate. Over budget, move detail to the seeded progress page; never trim the
-condition or drop a critic guarantee.
+## Gate on a real count
+
+`/goal` rejects any condition — everything after the `/goal ` prefix — over
+4,000 characters, so the count is a gate, not advice: write the body to a
+temp file and `wc -c` it before printing anything. Under 4,000 is the hard
+line, ~3,000 the target (`wc -c` counts bytes, which over-counts multi-byte
+text — an error on the safe side). Over budget: first delete anything the
+body says twice — an abandoned draft paragraph left beside its re-draft is
+how real messages have overflowed — then move detail into the seeded
+progress page (the opening instruction already sends the session there) and
+tighten the deltas; condense the prompt's own phrasing only as a last
+resort, guarantees intact, and never trim the condition or drop a critic
+guarantee. Re-count after every cut, and print only a body that has passed.
 
 ## Print and stop
 
