@@ -21,6 +21,7 @@ optimus-claude/
 │   ├── commit/               # /optimus:commit (default | suggest | branch)
 │   ├── brainstorm/           # /optimus:brainstorm (design | scaffold)
 │   ├── handoff/              # /optimus:handoff
+│   ├── dream/                # /optimus:dream
 │   └── jira/                 # /optimus:jira
 └── scripts/harness_common/    # orchestrator CLI: cli.py plus findings, convergence,
                               # fixes, git, parser, progress, runner, reporting, constants
