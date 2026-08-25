@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.6.1-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.7.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -66,6 +66,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 | [`/optimus:permissions`](skills/permissions/README.md) | Configures branch protection, precious-file safety, and auto-approved routine tool calls via allow/deny rules and a PreToolUse hook. |
 | [`/optimus:prompt`](skills/prompt/README.md) | Crafts optimized, copy-ready prompts for any AI tool — extracts intent, selects a template, audits for token efficiency. |
 | [`/optimus:reset`](skills/reset/README.md) | Removes files installed by init and permissions. Classifies each file before deletion and always asks for confirmation. |
+| [`/optimus:dream`](skills/dream/README.md) | Prunes and consolidates the project's auto-memory — deletes stale, wrong, or redundant memories and merges overlaps into existing files, never creating new ones. Verifies staleness against the codebase and always asks before deleting. |
 
 ## Recommended Workflow
 
@@ -76,7 +77,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 
 **Keep intent flowing from implementation to review:** stay in the implementation conversation when running `/optimus:commit` and `/optimus:pr` — they capture *why* the change was made into the commit message and PR description. Then review in a fresh conversation: `/optimus:code-review` reads the PR description as author intent and checks whether the implementation delivers what it claims, not just whether it follows style rules. (`/optimus:tdd` auto-commits per cycle and pushes at the end, so its flow collapses to `tdd` → `pr` → review.)
 
-**After major changes** — re-run `/optimus:init` to audit and refresh the generated docs. **New to a codebase?** — `/optimus:how-to-run`. **Removing optimus** — `/optimus:reset`.
+**After major changes** — re-run `/optimus:init` to audit and refresh the generated docs. **New to a codebase?** — `/optimus:how-to-run`. **Auto-memory grown stale?** — `/optimus:dream`. **Removing optimus** — `/optimus:reset`.
 
 ## Why It Works
 
