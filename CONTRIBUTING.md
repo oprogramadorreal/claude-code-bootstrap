@@ -22,7 +22,8 @@ optimus-claude/
 │   ├── brainstorm/           # /optimus:brainstorm (design | scaffold)
 │   ├── handoff/              # /optimus:handoff
 │   ├── dream/                # /optimus:dream
-│   └── jira/                 # /optimus:jira
+│   ├── jira/                 # /optimus:jira
+│   └── paper-init/           # /optimus:paper-init
 └── scripts/harness_common/    # orchestrator CLI: cli.py plus findings, convergence,
                               # fixes, git, parser, progress, runner, reporting, constants
 ```
