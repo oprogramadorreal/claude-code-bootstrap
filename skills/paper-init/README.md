@@ -4,7 +4,8 @@ Builds a self-contained paper-context bundle for implementing a research paper �
 a faithful transcription, figures, annotated references, an implementation spec with the reported
 results, open questions, and dataset provenance — under `paper/`, with datasets in a gitignored
 `data/`. Stack-agnostic: it writes no implementation code and sets up no project stack (transient
-fetch or extraction tooling may be pip-installed during the run; the final message names it). The
+fetch or extraction tooling may be installed along the way — isolated, never into the project's
+own environment; the final message names it). The
 bundle is the launchpad for a later implementation run, typically `/optimus:gauntlet` judged
 against the paper's reported results.
 
@@ -40,7 +41,8 @@ commit the bundle, then start the implementation in a fresh conversation.
 | `paper/source/` | Pristine originals (PDF + best machine-readable form) |
 | `paper/source/metadata.json` | Provenance: bibliographic facts, license, code/dataset availability, exact re-acquisition record per file |
 | `paper/paper.md` | Complete working transcription — LaTeX math, local figure links, inline tables |
-| `paper/figures/` + `figures/README.md` | Best-resolution figure rasters, captioned, known defects flagged |
+| `paper/tables.md` | Overflow tables, when numerous or large (linked both ways from `paper.md`) |
+| `paper/figures/` + `paper/figures/README.md` | Best-resolution figure rasters, captioned, known defects flagged |
 | `paper/references.md` | Every reference annotated with role, link, and fetch priority |
 | `paper/spec.md` | What the paper specifies, §-referenced — ending in the targets the implementation is held to |
 | `paper/open-questions.md` | What's undefined, blocking-first, with a `[verified]` convention for file-checked findings |
@@ -48,8 +50,10 @@ commit the bundle, then start the implementation in a fresh conversation.
 | `paper/reference-code/` | Vendored existing implementations (gitignored), when they exist — reference, never the implementation |
 | `data/` | Downloaded datasets (gitignored; `data/README.md` stays committed) |
 
-It also ensures `.gitignore` ignores `data/*` (with a `!data/README.md` exception) and
-`paper/reference-code/`, and adds a short routing block to the root README when one exists.
+It also ensures `.gitignore` ignores `data/*` (with a `!data/README.md` exception — a pre-existing
+`data/` line is narrowed to `data/*` when one would defeat it) and `paper/reference-code/`, plus
+`paper/source/` and figure rasters when the paper's license doesn't permit redistribution, and
+maintains a marker-delimited routing block in the root README when one exists.
 Everything it writes is tool-agnostic — no file mentions this plugin or any AI product.
 
 ## How it works
@@ -68,11 +72,12 @@ Everything it writes is tool-agnostic — no file mentions this plugin or any AI
 7. **Reports** the bundle, dataset status, and a suggested stack — then the next step.
 
 It commits nothing; the final message tells you to commit the bundle before starting the
-implementation run (the gauntlet loop reads its bar materials from committed paths).
+implementation run, so the loop starts from a clean, tracked baseline.
 
 ## Notes
 
 - Needs network access; paywalled papers stop with a plain explanation (or use a PDF you supply).
-- In a multi-repo workspace, the bundle goes inside the target repo, not above it.
+- In a multi-repo workspace, it asks which repo the paper work targets and builds inside it,
+  never above it.
 - Re-running on the same paper refreshes in place; it never moves or merges an existing bundle.
 - Never touches `docs/specs/`, `docs/product/`, `.claude/CLAUDE.md`, or `.claude/.optimus-version`.
