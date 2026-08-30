@@ -1,13 +1,16 @@
 # /optimus:paper-init
 
 Builds a self-contained paper-context bundle for implementing a research paper — pristine sources,
-a faithful transcription, figures, annotated references, an implementation spec with the reported
+a faithful transcription, figures, annotated references (works the paper defers load-bearing content
+to are fetched too), an implementation spec with the reported
 results, open questions, and dataset provenance — under `paper/`, with datasets in a gitignored
-`data/`. Stack-agnostic: it writes no implementation code and sets up no project stack (transient
+`data/`. When the paper's experiments demand substantial compute, it compares the requirements
+against the local hardware and warns before you invest in a reproduction the machine can't run.
+Stack-agnostic: it writes no implementation code and sets up no project stack (transient
 fetch or extraction tooling may be installed along the way — isolated, never into the project's
 own environment; the final message names it). The
 bundle is the launchpad for a later implementation run, typically `/optimus:gauntlet` judged
-against the paper's reported results.
+against `spec.md`'s targets — the paper's reported results, unless the feasibility gate reduced them.
 
 ## When to run
 
@@ -29,9 +32,10 @@ against the paper's reported results.
     /optimus:paper-init 10.3389/frai.2026.1828627
     /optimus:paper-init ./downloads/paper.pdf
 
-With no argument, it asks for one. It ends with a summary of the bundle, the dataset status, and a
-suggested tech stack (a suggestion only — nothing is installed), then points you at the next step:
-commit the bundle, then start the implementation in a fresh conversation.
+With no argument, it asks for one. It ends with a summary of the bundle, the cited works fetched,
+the dataset status, hardware feasibility, and a suggested tech stack (a suggestion only — nothing
+is installed), then points you at the next step: commit the bundle, then start the implementation
+in a fresh conversation.
 
 ## What it produces
 
@@ -44,6 +48,7 @@ commit the bundle, then start the implementation in a fresh conversation.
 | `paper/tables.md` | Overflow tables, when numerous or large (linked both ways from `paper.md`) |
 | `paper/figures/` + `paper/figures/README.md` | Best-resolution figure rasters, captioned, known defects flagged |
 | `paper/references.md` | Every reference annotated with role, link, and fetch priority |
+| `paper/cited/` | Pristine sources of cited works the implementation depends on, when any were fetched |
 | `paper/spec.md` | What the paper specifies, §-referenced — ending in the targets the implementation is held to |
 | `paper/open-questions.md` | What's undefined, blocking-first, with a `[verified]` convention for file-checked findings |
 | `paper/dataset.md` | Dataset provenance, exact re-acquisition commands, verified counts, license terms (when the paper uses datasets) |
@@ -52,8 +57,10 @@ commit the bundle, then start the implementation in a fresh conversation.
 
 It also ensures `.gitignore` ignores `data/*` (with a `!data/README.md` exception — a pre-existing
 `data/` line is narrowed to `data/*` when one would defeat it) and `paper/reference-code/`, plus
-`paper/source/` and figure rasters when the paper's license doesn't permit redistribution, and
-maintains a marker-delimited routing block in the root README when one exists.
+`paper/source/*` (the metadata record stays committed) and figure rasters when the paper's license
+doesn't permit redistribution — the same test applies to each cited work individually
+(`paper/cited/<slug>/`) — and maintains a marker-delimited routing block in the root README when
+one exists.
 Everything it writes is tool-agnostic — no file mentions this plugin or any AI product.
 
 ## How it works
@@ -62,14 +69,20 @@ Everything it writes is tool-agnostic — no file mentions this plugin or any AI
 2. **Acquires sources** redundantly into `paper/source/` and records exactly how each file was
    obtained, so a fresh clone can re-acquire everything.
 3. **Writes the working forms** — transcription, figures, annotated references, spec, open
-   questions — verifying against the local files whatever can be settled now.
+   questions — verifying against the local files whatever can be settled now, and fetching each
+   cited work the implementation can't proceed without (sources and targeted extraction only,
+   never a per-citation bundle).
 4. **Checks for existing code** (Papers with Code, the paper's own links) and vendors it as
    reference material when found.
-5. **Gets the datasets**: freely downloadable ones are fetched and verified; large downloads
+5. **Assesses feasibility** when the paper's experiments demand substantial compute: compares the
+   requirements against the local hardware and, on a genuine mismatch, asks once how to proceed —
+   continue anyway, reduce scope, or line up other hardware — before any large dataset downloads.
+6. **Gets the datasets**: freely downloadable ones are fetched and verified; large downloads
    (GB-scale) ask first; blocked downloads (auth, license forms) get exact manual instructions
    in `paper/dataset.md` instead. A paper with no datasets skips this entirely.
-6. **Sets up gitignore and routing** so data stays local and the bundle stays discoverable.
-7. **Reports** the bundle, dataset status, and a suggested stack — then the next step.
+7. **Sets up gitignore and routing** so data stays local and the bundle stays discoverable.
+8. **Reports** the bundle, cited works fetched, dataset status, hardware feasibility, and a
+   suggested stack — then the next step.
 
 It commits nothing; the final message tells you to commit the bundle before starting the
 implementation run, so the loop starts from a clean, tracked baseline.
