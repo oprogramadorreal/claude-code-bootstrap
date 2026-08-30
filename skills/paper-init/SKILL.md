@@ -1,12 +1,12 @@
 ---
 description: >-
   Builds a self-contained paper-context bundle for implementing a research
-  paper — sources, transcription, figures, annotated references, an
-  implementation spec with the reported results, open questions, dataset
-  provenance — under paper/, with datasets in a gitignored data/. Downloads
-  files and edits .gitignore and the root README. Stack-agnostic; writes no
-  implementation code. Use when implementing a paper from a URL, PDF, DOI,
-  or arXiv id.
+  paper — sources, transcription, figures, references (blocking citations
+  fetched), an implementation spec with the reported results, open questions,
+  dataset provenance — under paper/, with datasets in a gitignored data/.
+  Warns when reproduction outstrips local hardware. Downloads files and edits
+  .gitignore and the root README. Stack-agnostic; writes no implementation
+  code. Use when implementing a paper from a URL, PDF, DOI, or arXiv id.
 disable-model-invocation: true
 argument-hint: "<paper URL, PDF path, DOI, or arXiv id>"
 ---
@@ -38,15 +38,18 @@ One `paper/` directory at the project root holds everything paper-derived:
   missing diagrams — at the top.
 - `paper/references.md` — every reference, annotated: role (dataset,
   baseline, method), resolved link, and fetch priority.
+- `paper/cited/` — pristine sources of the cited works the paper defers
+  load-bearing content to (step 3), when any were fetched. Nothing derived
+  lives here.
 - `paper/spec.md` — what the paper actually specifies (step 3), ending with
   the targets the implementation is later judged against.
 - `paper/open-questions.md` — what the paper leaves open (step 3).
 - `paper/dataset.md` — dataset provenance and re-acquisition, when the paper
-  uses datasets (step 5).
+  uses datasets (step 6).
 - `paper/reference-code/` — vendored existing code, when it exists (step 4);
   gitignored, its provenance tracked in `metadata.json`.
 - `data/` — the datasets themselves, gitignored, when any were acquired
-  (step 5).
+  (step 6).
 
 Every emitted file is tool-agnostic: "a fresh session", "the implementing
 agent" — never a named AI product, never `/optimus:*` commands. Only the
@@ -103,7 +106,8 @@ clone can re-acquire every publicly fetchable file from this record alone.
   are numerous or large, linked both ways). Open with a provenance header
   naming the source of record. Its length is the paper's own.
 - `paper/spec.md` — only what the paper states, each fact tagged with its
-  section ref: data, architecture, training procedure, evaluation, baselines,
+  section ref: data, architecture, training procedure (including the compute
+  the paper states — hardware, training time, scale), evaluation, baselines,
   reported results. Architecture/training/eval tables carry a "defined enough
   to implement?" column. Anything inferred, chosen, or assumed is labeled as
   ours or moves to `open-questions.md` — never present our choices as the
@@ -124,6 +128,19 @@ clone can re-acquire every publicly fetchable file from this record alone.
   verifiable-now TODO leaks into the implementation phase. Keep it under
   ~150 lines.
 
+When the paper defers load-bearing content to a citation — an inherited
+architecture, a borrowed training procedure, a dataset defined there — the
+bundle's contract covers that content too: fetch each such cited work now,
+as in step 2 (PDF plus the best structured form available), into
+`paper/cited/<slug>/`, and record it in `metadata.json` like any source.
+Pull the specific facts the main paper needs from it into `spec.md` or
+`open-questions.md`, tagged with provenance, and note in the work's
+`references.md` entry why it was fetched. Sources and targeted extraction
+only — no transcription, no figures, no per-citation bundle — and never
+chase a cited work's own references. Expect a handful of works at most,
+usually none. An inaccessible cited work gets step 1's treatment: say so
+plainly and proceed from a file the user supplies.
+
 If producing the bundle took mechanical extraction work a fresh session
 could not trivially redo (pulling rasters out of a PDF, dumping text from an
 EPUB), leave one small regenerator script that reproduces those derived
@@ -139,7 +156,7 @@ rasters — so regeneration stays diff-clean on any platform.
 
 Check Papers with Code and the paper's own links for official or third-party
 implementations. When code exists: vendor it into `paper/reference-code/`
-(gitignored — step 6), record its provenance as a `reference_code` object in
+(gitignored — step 7), record its provenance as a `reference_code` object in
 `metadata.json` (upstream URL, exact commit or tag, vendor date, license) —
 that tracked file is what lets a fresh clone re-acquire the code; anything
 left inside `paper/reference-code/` itself is gitignored away. Add a
@@ -148,7 +165,35 @@ details, training procedure). It is reference material, never the
 implementation. When none exists, record `code_available: false` in
 `metadata.json`.
 
-## 5. Datasets
+## 5. Feasibility
+
+When the paper's experiments plausibly demand substantial compute — model
+training, large-scale simulation or rendering — assess feasibility before
+step 6 acquires anything big. Most papers have nothing to gate (a survey, a
+proof, a small-scale study); skip this step for them entirely.
+
+- Draw the requirements from what `spec.md` recorded (step 3) and from the
+  vendored reference code's own docs, which often state hardware.
+- Detect the local GPU (model, VRAM) and RAM, and compare against what
+  faithful reproduction needs.
+- When the gap makes the reported targets unreachable in practice — not
+  merely slower — ask once with `AskUserQuestion`: header "Hardware
+  feasibility", the question naming the limiting factor and the concessions
+  that would close the gap (reduced scale, a dataset subset, quantized or
+  distilled variants, different hardware), options "Continue anyway" /
+  "Reduce scope" / "Pause — line up other hardware first".
+- Record the outcome where it binds: a reduced scope adjusts `spec.md`'s
+  targets section — that is the bar the implementation is later judged
+  against — gets a line in `open-questions.md`, and may shrink what step 6
+  downloads. "Continue anyway" leaves the targets untouched and notes the
+  hardware risk in `open-questions.md`.
+- Never write the hardware inventory itself into the bundle — it stays
+  machine-agnostic; only the decision and its consequences go on disk.
+
+No substantial compute, or no mismatch: no gate, and the final message says
+at most one line about feasibility.
+
+## 6. Datasets
 
 Identify every dataset the paper uses. Freely downloadable ones go into
 `data/` now; verify what arrived (file counts, sizes, integrity) against what
@@ -166,7 +211,7 @@ Small datasets download without asking. When a download is blocked (auth,
 license acceptance, a manual form), do not ask — write the exact steps into
 `dataset.md` and flag it in the final message.
 
-## 6. Gitignore and routing
+## 7. Gitignore and routing
 
 Each `.gitignore` rule below is independent — apply every one whose
 condition holds, adding only what is missing:
@@ -176,7 +221,10 @@ condition holds, adding only what is missing:
 - License: when `metadata.json`'s `license` does not permit redistribution
   (typical for a paywalled publisher PDF), also `paper/source/` and
   `paper/figures/*` with a `!paper/figures/README.md` exception — a fresh
-  clone re-acquires those from the metadata record. Flag in the final
+  clone re-acquires those from the metadata record. The same test applies to
+  every fetched cited work: any whose license forbids redistribution adds
+  `paper/cited/` to the ignore (the whole directory — each work is
+  re-acquirable from the record). Flag in the final
   message that `paper.md` is a full-length derivative of a non-open paper:
   committing it is the user's call when the repo is or will become public.
 
@@ -208,11 +256,14 @@ block; a `## Paper context` heading without markers is the user's own —
 leave it alone and append a new marked block. If no root README exists,
 skip — the bundle indexes itself.
 
-## 7. Final message
+## 8. Final message
 
-Close with: what the bundle contains and where; dataset status (downloaded
+Close with: what the bundle contains and where; which cited works were
+fetched and why (or that none were); dataset status (downloaded
 and verified, skipped, blocked — with the instructions pointer — or none);
-any transient tooling installed; and the suggested tech stack — drawn from
+hardware feasibility (one line when fine, the mismatch and the recorded
+decision when not); any transient tooling installed; and the suggested tech
+stack — drawn from
 the paper's content and the project's existing stack if one exists, a
 suggestion only, nothing is installed.
 
@@ -233,9 +284,10 @@ uncertain, ask before touching the existing bundle. A different paper while
 `paper/` already holds one: use `papers/<slug>/` (kebab-case slug from the
 title) as the bundle root everywhere — datasets go in `papers/<slug>/data/`
 with their own `data/README.md`, and the gitignore entries spell full paths
-(`papers/<slug>/data/*`, `papers/<slug>/reference-code/`): a pattern
+(`papers/<slug>/data/*`, `papers/<slug>/reference-code/`,
+`papers/<slug>/cited/`): a pattern
 containing slashes anchors at the `.gitignore` location, so the bare step
-5–6 paths cannot reach a nested bundle. Leave the existing bundle untouched
+6–7 paths cannot reach a nested bundle. Leave the existing bundle untouched
 and add the new one to the routing block. If `papers/<slug>/` already holds
 a different paper, disambiguate the slug (append the year or venue) — never
 refresh a bundle that is not the same work. Never merge two papers into one

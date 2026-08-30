@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.8.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.9.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
@@ -52,7 +52,7 @@ From then on, the quality skills enforce *your* standards, not generic ones: `/o
 | [`/optimus:refactor`](skills/refactor/README.md) | Refactors for guideline compliance and testability through four analysis lenses, with `testability` and `guidelines` focus modes. *Run init first.* |
 | [`/optimus:code-review`](skills/code-review/README.md) | Reviews changes for bugs, security issues, and guideline compliance through 5 to 7 review lenses. Auto-routes to PR mode on a clean branch with an open PR/MR and reads the PR description as author intent. *Run init first.* |
 | [`/optimus:deep`](skills/deep/README.md) | Iterative auto-fix orchestrator: `deep review`, `deep refactor`, or `deep coverage`. Runs the base skill in a fresh subagent per iteration, applies fixes, runs tests, bisects failures, and resumes across sessions. *Requires init + test command.* |
-| [`/optimus:paper-init`](skills/paper-init/README.md) | Builds a self-contained context bundle for implementing a research paper — pristine sources, faithful transcription, annotated references, an implementation spec with the reported results, open questions, and dataset provenance under `paper/`, with datasets in a gitignored `data/`. Stack-agnostic; writes no implementation code — hands off to `/optimus:gauntlet`. |
+| [`/optimus:paper-init`](skills/paper-init/README.md) | Builds a self-contained context bundle for implementing a research paper — pristine sources, faithful transcription, annotated references (blocking citations fetched), an implementation spec with the reported results, open questions, and dataset provenance under `paper/`, with datasets in a gitignored `data/`. Warns when reproduction outstrips local hardware. Stack-agnostic; writes no implementation code — hands off to `/optimus:gauntlet`. |
 | [`/optimus:gauntlet`](skills/gauntlet/README.md) | Runs a Gauntlet Loop: turns an ambitious goal into a builder/critic improvement loop judged against a concrete quality bar — fresh-context critics compare the real output against the bar and return either *beats the bar* or the biggest remaining gap, with no fixed round count, until the output beats the bar or you stop the run. Confirms before starting the long multi-agent run. *Run init first.* |
 
 ### Utility
