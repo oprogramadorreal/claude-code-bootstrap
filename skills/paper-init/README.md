@@ -10,7 +10,7 @@ Stack-agnostic: it writes no implementation code and sets up no project stack (t
 fetch or extraction tooling may be installed along the way — isolated, never into the project's
 own environment; the final message names it). The
 bundle is the launchpad for a later implementation run, typically `/optimus:gauntlet` judged
-against the paper's reported results.
+against `spec.md`'s targets — the paper's reported results, unless the feasibility gate reduced them.
 
 ## When to run
 
@@ -32,9 +32,10 @@ against the paper's reported results.
     /optimus:paper-init 10.3389/frai.2026.1828627
     /optimus:paper-init ./downloads/paper.pdf
 
-With no argument, it asks for one. It ends with a summary of the bundle, the dataset status, and a
-suggested tech stack (a suggestion only — nothing is installed), then points you at the next step:
-commit the bundle, then start the implementation in a fresh conversation.
+With no argument, it asks for one. It ends with a summary of the bundle, the cited works fetched,
+the dataset status, hardware feasibility, and a suggested tech stack (a suggestion only — nothing
+is installed), then points you at the next step: commit the bundle, then start the implementation
+in a fresh conversation.
 
 ## What it produces
 
@@ -56,9 +57,10 @@ commit the bundle, then start the implementation in a fresh conversation.
 
 It also ensures `.gitignore` ignores `data/*` (with a `!data/README.md` exception — a pre-existing
 `data/` line is narrowed to `data/*` when one would defeat it) and `paper/reference-code/`, plus
-`paper/source/` and figure rasters when the paper's license doesn't permit redistribution — the
-same test applies to fetched cited works (`paper/cited/`) — and
-maintains a marker-delimited routing block in the root README when one exists.
+`paper/source/*` (the metadata record stays committed) and figure rasters when the paper's license
+doesn't permit redistribution — the same test applies to each cited work individually
+(`paper/cited/<slug>/`) — and maintains a marker-delimited routing block in the root README when
+one exists.
 Everything it writes is tool-agnostic — no file mentions this plugin or any AI product.
 
 ## How it works
@@ -74,7 +76,7 @@ Everything it writes is tool-agnostic — no file mentions this plugin or any AI
    reference material when found.
 5. **Assesses feasibility** when the paper's experiments demand substantial compute: compares the
    requirements against the local hardware and, on a genuine mismatch, asks once how to proceed —
-   continue anyway, reduce scope, or line up other hardware — before anything big downloads.
+   continue anyway, reduce scope, or line up other hardware — before any large dataset downloads.
 6. **Gets the datasets**: freely downloadable ones are fetched and verified; large downloads
    (GB-scale) ask first; blocked downloads (auth, license forms) get exact manual instructions
    in `paper/dataset.md` instead. A paper with no datasets skips this entirely.

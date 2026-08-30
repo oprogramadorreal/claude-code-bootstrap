@@ -132,14 +132,18 @@ When the paper defers load-bearing content to a citation — an inherited
 architecture, a borrowed training procedure, a dataset defined there — the
 bundle's contract covers that content too: fetch each such cited work now,
 as in step 2 (PDF plus the best structured form available), into
-`paper/cited/<slug>/`, and record it in `metadata.json` like any source.
+`paper/cited/<slug>/`, and record each in a `cited_works` array in
+`metadata.json` (title, identifier, slug, license, and the acquisition
+record — URL and date, or the path it came from for a user-supplied file).
 Pull the specific facts the main paper needs from it into `spec.md` or
 `open-questions.md`, tagged with provenance, and note in the work's
 `references.md` entry why it was fetched. Sources and targeted extraction
 only — no transcription, no figures, no per-citation bundle — and never
 chase a cited work's own references. Expect a handful of works at most,
 usually none. An inaccessible cited work gets step 1's treatment: say so
-plainly and proceed from a file the user supplies.
+plainly and either stop or proceed from a file the user supplies; one the
+user cannot supply stays a visible gap — record what the paper defers to
+it in `open-questions.md` and report it in the final message.
 
 If producing the bundle took mechanical extraction work a fresh session
 could not trivially redo (pulling rasters out of a PDF, dumping text from an
@@ -173,20 +177,31 @@ step 6 acquires anything big. Most papers have nothing to gate (a survey, a
 proof, a small-scale study); skip this step for them entirely.
 
 - Draw the requirements from what `spec.md` recorded (step 3) and from the
-  vendored reference code's own docs, which often state hardware.
+  vendored reference code's own docs, which often state hardware. When
+  neither states them, estimate from what the paper does record — model
+  scale, dataset size, training steps — and label the figures as estimates.
 - Detect the local GPU (model, VRAM) and RAM, and compare against what
-  faithful reproduction needs.
+  faithful reproduction needs. Detection tooling is not universal (no
+  `nvidia-smi` on AMD or Apple Silicon machines): when it cannot answer,
+  ask the user what the machine has — never read a failed detection as
+  "no GPU".
 - When the gap makes the reported targets unreachable in practice — not
   merely slower — ask once with `AskUserQuestion`: header "Hardware
   feasibility", the question naming the limiting factor and the concessions
   that would close the gap (reduced scale, a dataset subset, quantized or
   distilled variants, different hardware), options "Continue anyway" /
   "Reduce scope" / "Pause — line up other hardware first".
-- Record the outcome where it binds: a reduced scope adjusts `spec.md`'s
+- Record the outcome where it binds. A reduced scope adjusts `spec.md`'s
   targets section — that is the bar the implementation is later judged
-  against — gets a line in `open-questions.md`, and may shrink what step 6
-  downloads. "Continue anyway" leaves the targets untouched and notes the
-  hardware risk in `open-questions.md`.
+  against — gets a line in `open-questions.md`, may shrink what step 6
+  downloads, and is recorded in `metadata.json` (the decision and the
+  adjusted targets) so a refresh re-applies them rather than restoring the
+  paper's reported targets. "Continue anyway" leaves the targets untouched
+  and notes the hardware risk in `open-questions.md`. "Pause" stops the
+  spend, not the bundle: step 6 writes re-acquisition steps into
+  `dataset.md` instead of downloading, `open-questions.md` records the
+  pause, and the remaining steps finish so the bundle commits complete and
+  a re-run resumes it.
 - Never write the hardware inventory itself into the bundle — it stays
   machine-agnostic; only the decision and its consequences go on disk.
 
@@ -219,14 +234,19 @@ condition holds, adding only what is missing:
 - Datasets in use: `data/*` plus `!data/README.md`.
 - Vendored reference code: `paper/reference-code/`.
 - License: when `metadata.json`'s `license` does not permit redistribution
-  (typical for a paywalled publisher PDF), also `paper/source/` and
-  `paper/figures/*` with a `!paper/figures/README.md` exception — a fresh
-  clone re-acquires those from the metadata record. The same test applies to
-  every fetched cited work: any whose license forbids redistribution adds
-  `paper/cited/` to the ignore (the whole directory — each work is
-  re-acquirable from the record). Flag in the final
-  message that `paper.md` is a full-length derivative of a non-open paper:
-  committing it is the user's call when the repo is or will become public.
+  (typical for a paywalled publisher PDF), also `paper/source/*` and
+  `paper/figures/*` with `!paper/source/metadata.json` and
+  `!paper/figures/README.md` exceptions — a fresh clone re-acquires those
+  from the metadata record, which must therefore stay committed. Flag in
+  the final message that `paper.md` is a full-length derivative of a
+  non-open paper: committing it is the user's call when the repo is or
+  will become public.
+- Cited works: the same license test applies to each cited work on its
+  own, whatever the main paper's license — one whose license forbids
+  redistribution adds its own `paper/cited/<slug>/` directory, never the
+  whole `paper/cited/` (other works may be committable). A fetched work is
+  re-acquirable from the record; a user-supplied one exists only at the
+  path it came from — say so in the final message.
 
 A pre-existing `data/` line (directory form, common in ML repos) defeats the
 `!data/README.md` exception — git cannot re-include a file under an excluded
@@ -258,8 +278,9 @@ skip — the bundle indexes itself.
 
 ## 8. Final message
 
-Close with: what the bundle contains and where; which cited works were
-fetched and why (or that none were); dataset status (downloaded
+Close with: what the bundle contains and where; cited works — which were
+fetched and why, which the user supplied, and which remain gaps in
+`open-questions.md` (or that none were needed); dataset status (downloaded
 and verified, skipped, blocked — with the instructions pointer — or none);
 hardware feasibility (one line when fine, the mismatch and the recorded
 decision when not); any transient tooling installed; and the suggested tech
@@ -279,13 +300,19 @@ Same paper — a resolved identifier (DOI, arXiv id) matches
 `source/metadata.json`, or one source names the other's identifier (an arXiv
 page listing the published DOI): refresh in place — update, don't duplicate,
 and keep the original acquisition records (append the refresh; a preprint's
-provenance is not overwritten by its published version's). When the match is
-uncertain, ask before touching the existing bundle. A different paper while
+provenance is not overwritten by its published version's). A scope decision
+recorded in `metadata.json` (step 5) is not paper content: re-apply it to
+the regenerated `spec.md` targets rather than restoring the reported
+results. Cited works already in `paper/cited/` are kept, not re-fetched;
+when the revision drops a citation the bundle fetched, ask before removing
+its directory. When the match is uncertain, ask before touching the
+existing bundle. A different paper while
 `paper/` already holds one: use `papers/<slug>/` (kebab-case slug from the
 title) as the bundle root everywhere — datasets go in `papers/<slug>/data/`
 with their own `data/README.md`, and the gitignore entries spell full paths
-(`papers/<slug>/data/*`, `papers/<slug>/reference-code/`,
-`papers/<slug>/cited/`): a pattern
+(`papers/<slug>/data/*` with its `!papers/<slug>/data/README.md` exception,
+`papers/<slug>/reference-code/`, `papers/<slug>/cited/<work>/` only when
+step 7's license rule fires for that work): a pattern
 containing slashes anchors at the `.gitignore` location, so the bare step
 6–7 paths cannot reach a nested bundle. Leave the existing bundle untouched
 and add the new one to the routing block. If `papers/<slug>/` already holds
