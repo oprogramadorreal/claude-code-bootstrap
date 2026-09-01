@@ -25,10 +25,10 @@ One `paper/` directory at the project root holds everything paper-derived:
 
 - `paper/README.md` — bundle index: what this is, the read-first order,
   current status. Under ~50 lines.
-- `paper/source/` — pristine originals only: the PDF plus the best
-  machine-readable form available (EPUB, HTML, XML, arXiv LaTeX source),
-  exactly as acquired. Derived files (text dumps, extracted markup) never
-  live here.
+- `paper/source/` — pristine originals only: the PDF (supplementary
+  material included) plus the best machine-readable form available (EPUB,
+  HTML, XML, arXiv LaTeX source), exactly as acquired. Derived files (text
+  dumps, extracted markup) never live here.
 - `paper/source/metadata.json` — the provenance record (step 2).
 - `paper/paper.md` — the faithful working transcription (step 3).
 - `paper/tables.md` — overflow tables, only when the transcription takes its
@@ -38,9 +38,9 @@ One `paper/` directory at the project root holds everything paper-derived:
   missing diagrams — at the top.
 - `paper/references.md` — every reference, annotated: role (dataset,
   baseline, method), resolved link, and fetch priority.
-- `paper/cited/` — pristine sources of the cited works the paper defers
-  load-bearing content to (step 3), when any were fetched. Nothing derived
-  lives here.
+- `paper/cited/` — pristine sources of the works the paper, or a fetched
+  work in turn, defers load-bearing content to (step 3), when any were
+  fetched. Nothing derived lives here.
 - `paper/spec.md` — what the paper actually specifies (step 3), ending with
   the targets the implementation is later judged against.
 - `paper/open-questions.md` — what the paper leaves open (step 3).
@@ -73,20 +73,21 @@ when it finds no recognized structure, work in the current directory.
 ## 2. Acquire sources
 
 Download into `paper/source/`, redundantly: the PDF whenever one exists (an
-HTML-only paper's publisher full text is the primary source), plus the
-cleanest structured full text the publisher offers — the transcription
-cross-checks formats against each other. For arXiv papers, also pull the
-e-print source bundle (`https://arxiv.org/e-print/<id>`) when offered: the
-LaTeX source makes math transcription near-mechanical and ships figures at
-native resolution. Pull figure rasters into `paper/figures/` from whichever
-source has the best resolution (PDF-embedded usually beats web-served); keep
-native formats, never re-encode, and write `paper/figures/README.md` as they
-land — one line per figure (file, dimensions, caption from the paper text),
-known defects (duplicates, missing diagrams) at the top. Installing
-transient fetch or extraction tooling along the way (a PDF library, gdown,
-pandoc) is fine — that is not the project stack — but install it isolated
-(pipx, a scratch venv, `pip install --target` into a temp dir), never into
-the project's own environment.
+HTML-only paper's publisher full text is the primary source), any
+supplementary material, plus the cleanest structured full text the
+publisher offers — the transcription cross-checks formats against each
+other. For arXiv papers, also pull the e-print source bundle
+(`https://arxiv.org/e-print/<id>`) when offered: the LaTeX source makes math
+transcription near-mechanical and ships figures at native resolution. Pull
+figure rasters into `paper/figures/` from whichever source has the best
+resolution (PDF-embedded usually beats web-served); keep native formats,
+never re-encode, and write `paper/figures/README.md` as they land — one line
+per figure (file, dimensions, caption from the paper text), known defects
+(duplicates, missing diagrams) at the top. Installing transient fetch or
+extraction tooling along the way (a PDF library, gdown, pandoc) is fine —
+that is not the project stack — but install it isolated (pipx, a scratch
+venv, `pip install --target` into a temp dir), never into the project's own
+environment.
 
 `metadata.json` records at minimum: `title`, `authors`, `venue`, `published`,
 `doi`, `url`, `license`, `downloaded` (date), `code_available` (with the
@@ -130,20 +131,20 @@ clone can re-acquire every publicly fetchable file from this record alone.
 
 When the paper defers load-bearing content to a citation — an inherited
 architecture, a borrowed training procedure, a dataset defined there — the
-bundle's contract covers that content too: fetch each such cited work now,
-as in step 2 (PDF plus the best structured form available), into
-`paper/cited/<slug>/`, and record each in a `cited_works` array in
-`metadata.json` (title, identifier, slug, license, and the acquisition
-record — URL and date, or the path it came from for a user-supplied file).
-Pull the specific facts the main paper needs from it into `spec.md` or
-`open-questions.md`, tagged with provenance, and note in the work's
-`references.md` entry why it was fetched. Sources and targeted extraction
-only — no transcription, no figures, no per-citation bundle — and never
-chase a cited work's own references. Expect a handful of works at most,
-usually none. An inaccessible cited work gets step 1's treatment: say so
-plainly and either stop or proceed from a file the user supplies; one the
-user cannot supply stays a visible gap — record what the paper defers to
-it in `open-questions.md` and report it in the final message.
+bundle's contract covers that content too: fetch each such cited work's
+sources now, as in step 2, into `paper/cited/<slug>/`, and record each in
+a `cited_works` array in `metadata.json` (title, identifier, slug, license,
+and the acquisition record — URL and date, or the path it came from for a
+user-supplied file). Pull the specific facts the implementation needs from
+it into `spec.md` or `open-questions.md`, tagged with provenance, and note
+in `references.md` why it was fetched — a work the paper itself never cites
+gets its own entry there. Apply the same test to each fetched work: when it
+defers content the implementation still needs to a further work, fetch that
+one too. Sources and targeted extraction only — no bundle per cited work.
+Expect a handful of works, not a bibliography crawl: the test is dependence,
+not relevance. An inaccessible cited work stays a visible gap — record what
+is deferred to it in `open-questions.md` and report it in the final message
+so the user can supply a copy.
 
 If producing the bundle took mechanical extraction work a fresh session
 could not trivially redo (pulling rasters out of a PDF, dumping text from an
@@ -158,16 +159,16 @@ rasters — so regeneration stays diff-clean on any platform.
 
 ## 4. Reference code
 
-Check Papers with Code and the paper's own links for official or third-party
-implementations. When code exists: vendor it into `paper/reference-code/`
-(gitignored — step 7), record its provenance as a `reference_code` object in
-`metadata.json` (upstream URL, exact commit or tag, vendor date, license) —
-that tracked file is what lets a fresh clone re-acquire the code; anything
-left inside `paper/reference-code/` itself is gitignored away. Add a
-what-it-reveals summary to `references.md` (hyperparameters, architecture
-details, training procedure). It is reference material, never the
-implementation. When none exists, record `code_available: false` in
-`metadata.json`.
+Check the paper's own links and project page, then search for official or
+third-party implementations. When code exists: vendor it into
+`paper/reference-code/` (gitignored — step 7), record its provenance as a
+`reference_code` object in `metadata.json` (upstream URL, exact commit or
+tag, vendor date, license) — that tracked file is what lets a fresh clone
+re-acquire the code; anything left inside `paper/reference-code/` itself is
+gitignored away. Add a what-it-reveals summary to `references.md`
+(hyperparameters, architecture details, training procedure). It is
+reference material, never the implementation. When none exists, record
+`code_available: false` in `metadata.json`.
 
 ## 5. Feasibility
 
@@ -237,10 +238,10 @@ condition holds, adding only what is missing:
   (typical for a paywalled publisher PDF), also `paper/source/*` and
   `paper/figures/*` with `!paper/source/metadata.json` and
   `!paper/figures/README.md` exceptions — a fresh clone re-acquires those
-  from the metadata record, which must therefore stay committed. Flag in
-  the final message that `paper.md` is a full-length derivative of a
-  non-open paper: committing it is the user's call when the repo is or
-  will become public.
+  from the metadata record, which must therefore stay committed. When the
+  license forbids redistribution or derivatives (an ND clause), flag in the
+  final message that `paper.md` is a full-length derivative: committing it
+  is the user's call when the repo is or will become public.
 - Cited works: the same license test applies to each cited work on its
   own, whatever the main paper's license — one whose license forbids
   redistribution adds its own `paper/cited/<slug>/` directory, never the

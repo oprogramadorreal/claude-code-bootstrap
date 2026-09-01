@@ -2,7 +2,7 @@
 
 Builds a self-contained paper-context bundle for implementing a research paper — pristine sources,
 a faithful transcription, figures, annotated references (works the paper defers load-bearing content
-to are fetched too), an implementation spec with the reported
+to are fetched too, and what those defer to in turn), an implementation spec with the reported
 results, open questions, and dataset provenance — under `paper/`, with datasets in a gitignored
 `data/`. When the paper's experiments demand substantial compute, it compares the requirements
 against the local hardware and warns before you invest in a reproduction the machine can't run.
@@ -42,13 +42,13 @@ in a fresh conversation.
 | Path | Contents |
 |------|----------|
 | `paper/README.md` | Bundle index: what this is, read-first order, status |
-| `paper/source/` | Pristine originals (PDF + best machine-readable form) |
+| `paper/source/` | Pristine originals (PDF, supplementary material, best machine-readable form) |
 | `paper/source/metadata.json` | Provenance: bibliographic facts, license, code/dataset availability, exact re-acquisition record per file |
 | `paper/paper.md` | Complete working transcription — LaTeX math, local figure links, inline tables |
 | `paper/tables.md` | Overflow tables, when numerous or large (linked both ways from `paper.md`) |
 | `paper/figures/` + `paper/figures/README.md` | Best-resolution figure rasters, captioned, known defects flagged |
 | `paper/references.md` | Every reference annotated with role, link, and fetch priority |
-| `paper/cited/` | Pristine sources of cited works the implementation depends on, when any were fetched |
+| `paper/cited/` | Pristine sources of the works the implementation depends on beyond the paper — cited works and, transitively, what those defer to — when any were fetched |
 | `paper/spec.md` | What the paper specifies, §-referenced — ending in the targets the implementation is held to |
 | `paper/open-questions.md` | What's undefined, blocking-first, with a `[verified]` convention for file-checked findings |
 | `paper/dataset.md` | Dataset provenance, exact re-acquisition commands, verified counts, license terms (when the paper uses datasets) |
@@ -70,10 +70,10 @@ Everything it writes is tool-agnostic — no file mentions this plugin or any AI
    obtained, so a fresh clone can re-acquire everything.
 3. **Writes the working forms** — transcription, figures, annotated references, spec, open
    questions — verifying against the local files whatever can be settled now, and fetching each
-   cited work the implementation can't proceed without (sources and targeted extraction only,
-   never a per-citation bundle).
-4. **Checks for existing code** (Papers with Code, the paper's own links) and vendors it as
-   reference material when found.
+   cited work the implementation can't proceed without, and in turn what those works defer to
+   (sources and targeted extraction only, never a per-citation bundle).
+4. **Checks for existing code** (the paper's own links and project page, then a code search) and
+   vendors it as reference material when found.
 5. **Assesses feasibility** when the paper's experiments demand substantial compute: compares the
    requirements against the local hardware and, on a genuine mismatch, asks once how to proceed —
    continue anyway, reduce scope, or line up other hardware — before any large dataset downloads.
