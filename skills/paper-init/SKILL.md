@@ -113,16 +113,25 @@ clone can re-acquire every publicly fetchable file from this record alone.
   to implement?" column. Anything inferred, chosen, or assumed is labeled as
   ours or moves to `open-questions.md` — never present our choices as the
   paper's. End with a short "targets worth holding the implementation to"
-  section: the externally meaningful numbers from the reported results — that
-  section is the quality bar the implementation is later judged against. Keep
-  the file under ~200 lines.
+  section — the quality bar the implementation is later judged against, so it
+  must stand on its own: the externally meaningful results (numbers, and
+  figures where the claim is qualitative), each with the metric, data,
+  protocol, and spread the paper reports, plus the cheaper checks the paper
+  states along the way (dataset counts, parameter counts, a loss reached)
+  that let part of the implementation be judged before a full run exists. A
+  target the bundle cannot yet measure — data not on disk, a scorer or
+  protocol undefined — says what is missing. Keep the file under ~200 lines.
 - `paper/references.md` — every reference the paper cites, annotated: role
   (dataset, baseline, method), resolved link, fetch priority. Step 4 appends
   the reference-code summary here when code exists.
 - `paper/open-questions.md` — everything undefined, ordered by how much it
   blocks work: missing hyperparameters, ambiguous procedures, figure/table
   defects (ledgered in `figures/README.md` — point there, don't duplicate),
-  credibility issues, and a suggested framing for the implementation. Mark a
+  credibility issues, and a suggested framing for the implementation, tech
+  stack included (drawn from the paper and the project's existing stack if
+  one exists). An open point with a defensible default says so and where it
+  comes from (reference code, a cited work, common practice), so an
+  unattended implementation run proceeds instead of stalling on it. Mark a
   finding `[verified]` only when checked against the local files during this
   run — never for inference — open the file with a one-line legend saying
   what the mark means, and settle now whatever those files can settle: no
@@ -285,15 +294,17 @@ fetched and why, which the user supplied, and which remain gaps in
 and verified, skipped, blocked — with the instructions pointer — or none);
 hardware feasibility (one line when fine, the mismatch and the recorded
 decision when not); any transient tooling installed; and the suggested tech
-stack — drawn from
-the paper's content and the project's existing stack if one exists, a
-suggestion only, nothing is installed.
+stack as recorded in `open-questions.md` — a suggestion only, nothing is
+installed.
 
 Then: commit the bundle first (e.g. with `/optimus:commit`, staying in this
 conversation) so the implementation loop starts from a clean, tracked
-baseline; then start a fresh conversation with `/optimus:gauntlet`, the goal
-pointing at the bundle root and the bar set to the targets section of its
-`spec.md`.
+baseline — the gitignored parts (`data/`, `paper/reference-code/`,
+license-ignored sources) exist only in this checkout, so a worktree or fresh
+clone re-acquires them from the records or copies them in. Then start a
+fresh conversation with `/optimus:gauntlet`, printed as one paste-ready
+line: the goal names the bundle root with its index as the read-first entry,
+the bar its `spec.md` targets section.
 
 ## Re-running
 
