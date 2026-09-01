@@ -34,13 +34,15 @@ only judges. So every turn ends by pasting the progress page's
 piece/round/verdict table, each critic's latest verdict verbatim, the tail
 of the test output with its exit status, and the current branch with its
 `git status --porcelain` output. The goal is met ONLY when every piece in
-the table has a verbatim "beats the bar" from its critic, the integration
-critic says the same of the assembled whole, the suite exits 0 on a feature
-branch whose porcelain status is clean, and all of it is shown in the most
-recent turn. The table is never empty once
-pieces are chosen, and no piece may be removed, renamed, or merged to satisfy
-the condition; the lead agent's own assessment never counts. A plateau is not
-completion: report it plainly each turn and keep working on the rest until the
+the table has its critic's final-line verdict reading exactly "beats the
+bar", the integration critic says the same of the assembled whole, the suite
+exits 0 on a feature branch whose porcelain status is clean, and all of it is
+shown in the most recent turn. The table is never empty once pieces are
+chosen — and the goal is never met while it is empty — and no piece may be
+removed, renamed, or merged to satisfy the condition (splitting one into
+finer pieces is fine; each new piece starts with no verdict); the lead
+agent's own assessment never counts. A plateau is not completion: report it
+plainly each turn and keep working on the rest until the
 user stops the goal — how to stop lives in their checklist, never in this
 message. In a testless project drop the test clauses from condition and
 evidence alike.

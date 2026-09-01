@@ -61,15 +61,16 @@ back to the strongest one that can. Explain the chosen bar in one sentence.
 
 Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md`
 and load the docs it lists. The bar defines what "good" means from outside;
-these define what this project requires from inside. The prompt carries both.
+these define what this project requires from inside. The prompt carries
+both — the docs as repo paths.
 
 Write a short prompt in that register (minimal is better here — the lead agent
 decides the specifics).
 
 Give the lead agent the goal and the bar, but let it choose the approach. Tell
 it to divide the goal into the smallest pieces that can be improved and judged
-independently. For each important piece, it should fan out a builder and a
-separate critic with fresh context.
+independently. For each piece, it should fan out a builder and, every round,
+a separate critic with fresh context.
 
 Every critic prompt carries the resolved bar materials themselves — the paths,
 URL, or command — plus the artifact under judgment, and nothing from the
@@ -83,20 +84,21 @@ visual or behavioral. Anything presented as computed — metrics, simulation
 output, live data — must trace to real computation: staged output that merely
 looks right is a gap, not a pass.
 
-Each critic returns one of two verdicts: **beats the bar**, or the single
-biggest remaining gap, which goes back for another round. It compares directly
-against the bar — blind A/B when the artifacts allow it, side by side
-otherwise. A piece is done when its critic returns *beats the bar*.
+Each critic ends with one of two verdicts as its final line: exactly
+**beats the bar**, or the single biggest remaining gap, which goes back for
+another round. It compares directly against the bar — blind A/B when the
+artifacts allow it, side by side otherwise. A piece is done when its critic
+returns *beats the bar*.
 
 Pieces that individually beat the bar can still disagree with each other, so
-when every piece is done, one last fresh critic judges the assembled whole
-against the same bar, and any gap it names goes back for a final round. The
-run ends when that integration critic returns *beats the bar* or when the
-user stops it — and in practice it is usually the second. Never end it on
-your own: if a piece's last
-two rounds close no gap its critic can still name, report the plateau to the
-user and let them decide whether it is worth more compute. Stopping is their
-call, not yours.
+when every piece is done, a fresh integration critic judges the assembled
+whole against the same bar, and any gap it names goes back for another round,
+judged again by a fresh integration critic. The run ends when the integration
+critic returns *beats the bar* or when the user stops it — and in practice it
+is usually the second. Never end it on your own: if a piece's last two rounds
+close no gap its critic can still name, report the plateau to the user and
+let them decide whether it is worth more compute. Stopping is their call, not
+yours.
 
 If the project has a test command, the suite stays green: a piece is not done
 while its tests fail.
@@ -118,9 +120,10 @@ session resumes from.
 Do not prescribe the architecture, exact decomposition, or a fixed number of
 rounds. Keep the prompt short, but short is a budget for phrasing, not licence
 to drop guarantees: fresh-context critics, the bar materials in every critic
-prompt, the two-way verdict, judging the running artifact, the integration
-critic, and the branch-and-commit rules all survive to the final draft. Short
-also has a number: keep the prompt under 2,000 characters, because the /goal
+prompt, the two-way verdict, judging the running artifact, the anti-staging
+rule, the integration critic, and the branch-and-commit rules all survive to
+the final draft. Short also has a number: keep the prompt under 2,000
+characters, because the /goal
 handoff must fit this exact prompt plus a completion condition into /goal's
 4,000-character message cap, and the condition needs the rest.
 
