@@ -1,12 +1,12 @@
 ---
-description: Reviews local changes, an open PR/MR, or a branch diff against the project's own coding guidelines, running parallel agents that each cover a different lens — bugs, security, guidelines, architecture, simplification, plus test coverage and API contracts when relevant. Excludes style and linter-catchable issues. Read-only: applies fixes or posts PR/MR comments only on explicit approval. For an iterative auto-fix loop, use /optimus:deep review.
+description: Reviews local changes, an open PR/MR, or a branch diff against the project's own coding guidelines through the review lenses — bugs, security, guidelines, architecture, simplification, plus test coverage and API contracts when relevant — inline on a small diff, in parallel agents on a larger one. Excludes style and linter-catchable issues. Read-only: applies fixes or posts PR/MR comments only on explicit approval. For an iterative auto-fix loop, use /optimus:deep review.
 disable-model-invocation: true
 argument-hint: "[--pr N | --branch | path]"
 ---
 
 # Code Review
 
-Analyze local git changes (or a PR/MR) against the project's coding guidelines with parallel review agents. Out of scope: style concerns, subjective preferences, and anything a linter already catches.
+Analyze local git changes (or a PR/MR) against the project's coding guidelines through the review lenses in Step 5 — inline on a small diff, in parallel agents on a larger one. Out of scope: style concerns, subjective preferences, and anything a linter already catches.
 
 ## Step 1: Parse Arguments and Verify Prerequisites
 
@@ -85,7 +85,7 @@ When you do fan out, launch every applicable agent as a `general-purpose` Agent 
 |-------|------|-------------|
 | 1 — Bug Detector | Null access, off-by-one, races, resource leaks, type mismatches | `bug-detector.md` |
 | 2 — Security & Logic | Injection, XSS, secrets, missing auth, security-relevant API violations | `security-reviewer.md` |
-| 3 — Guideline Compliance | Explicit violations of project docs, with exact rule citations | `guideline-reviewer.md` |
+| 3 — Guideline Compliance | Explicit violations of project docs, each citing the rule it breaks | `guideline-reviewer.md` |
 | 4 — Architecture & Boundaries | Layering and dependency direction, module responsibility, structural pattern drift, placement | `architecture-reviewer.md` |
 | 5 — Code Simplifier | Unnecessary complexity, dead code, removal-only simplifications | `code-simplifier.md` |
 | 6 — Test Guardian | Test coverage gaps, structural barriers to testability | `test-guardian.md` |

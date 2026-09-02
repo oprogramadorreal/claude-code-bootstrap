@@ -19,7 +19,6 @@ Read `.claude/CLAUDE.md` for project structure, then the relevant testing conven
 
 ## What You Do NOT Do
 
-- Do not write test code — only describe what should be tested and where the test file goes.
 - Do not install frameworks or dependencies; do not modify existing tests.
 - Do not flag inherently untestable code (config files, type definitions, constants, re-exports).
 - Do not flag markdown instruction files — if `.claude/docs/skill-writing-guidelines.md` exists, `.md` files under `skills/`, `agents/`, `prompts/`, `commands/`, or `instructions/` are instruction prose, not testable code.

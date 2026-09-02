@@ -21,7 +21,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   python-project:
     files_exist:
@@ -30,7 +30,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   go-project:
     files_exist:
@@ -39,7 +39,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   rust-project:
     files_exist:
@@ -48,7 +48,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   csharp-project:
     files_exist:
@@ -57,7 +57,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   monorepo-project:
     files_exist:
@@ -66,7 +66,7 @@ init:
       - .claude/.optimus-version
     files_contain:
       .claude/docs/coding-guidelines.md:
-        - "Clarity over cleverness"
+        - "Coding principles for"
 
   empty-project:
     # Empty project triggers scaffolding prompt — init may or may not create files
