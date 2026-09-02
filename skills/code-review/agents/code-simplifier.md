@@ -11,7 +11,3 @@ Apply shared constraints from `shared-constraints.md`. Every finding must be anc
 ## Output
 
 Use the output format in `shared-constraints.md`. **Category:** Code Quality. Do not run the Intent-vs-Implementation check.
-
-## Exclusions
-
-Never suggest adding helpers, wrappers, abstractions, validation, or error handling — any change whose net effect is more lines of code is not a simplification.

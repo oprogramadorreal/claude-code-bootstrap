@@ -27,17 +27,18 @@ Unlike [Reasoning-Native LLMs](#reasoning-native-llms), these accept explicit Co
 
 ### Claude (claude.ai, Claude API)
 
-Covers the Claude 5 family (Opus 5, Sonnet 5, Fable 5) and Claude 4.x. Where they differ, the bullet says so.
+Covers the Claude 5 family (Opus 5, Sonnet 5, Fable 5 and 5.1) and Claude 4.x. Where they differ, the bullet says so.
 
 - Be explicit and specific — Claude follows instructions literally, not by inference; always specify output format and length
 - XML tags for complex multi-section prompts: `<context>`, `<task>`, `<constraints>`, `<output_format>`
 - Provide context and reasoning WHY, not just WHAT — Claude generalizes better from explanations
 - For complex or multi-step tasks, front-load everything in one turn — intent, constraints, acceptance criteria, relevant files; extra back-and-forth adds reasoning overhead and cost
-- Don't add "think step by step" or a fixed thinking budget — current Claude calibrates reasoning depth automatically. To nudge: "Think carefully before responding" (more) or "Prioritize responding quickly" (less)
-- **Never add a self-verification step.** "Double-check your answer", "verify the output against the constraints above", "re-check before responding" — Claude 5 models verify and self-correct on their own, so these compound into wasted passes and buy no quality.
+- Don't add "think step by step" or a fixed thinking budget — current Claude calibrates reasoning depth automatically. On the API, depth is the `effort` setting, not prompt text; in claude.ai, where the user has no such control, a one-line nudge is the only lever: "Think carefully before responding" (more) or "Prioritize responding quickly" (less)
+- **Don't add self-check scaffolding.** "Double-check your answer", "verify the output against the constraints above", "re-check before responding" — Claude 5 models verify and self-correct on their own, so these compound into wasted passes and buy no quality. Keep checks against something external the model cannot self-assess (a test suite, a schema, a live API), and for a long autonomous build on Fable 5.1, a cadence for running its own checking harness against the spec.
 - **Bound scope with intent, not prohibitions.** Claude 5 models can widen a task past what was asked (Claude 4.x and Fable 5 over-tidy the same way). One line covers it: *"Deliver what was asked, at the scope intended. Make routine judgment calls yourself; check in only when two readings of the request would lead to materially different work. If a better approach exists, say so in a sentence and continue as asked."*
 - **Length is a separate lever from reasoning.** Claude 5 responses run longer by default, and lowering reasoning effort does not shorten them — ask directly: *"Keep responses focused and brief; spend most of the response on the main answer."* When the prompt produces a written file, add: *"Match the document's length to the substance — no filler sections, redundant summaries, or boilerplate."*
-- Don't instruct Fable 5 to echo or transcribe its reasoning as output text — that can trigger a refusal and fallback to Opus
+- Don't add anti-formatting rules ("no bullets", "no headers", "no bold") — Fable 5.1 already under-formats, so they strip formatting the reader wanted. Say when formatting is appropriate instead: *"Use lists and headers when the content is multifaceted enough that they help; plain prose for simple answers and conversational exchanges."*
+- Don't instruct Fable 5.x to echo or transcribe its reasoning as output text — the reasoning-extraction safeguard can refuse the request (and fall back to Opus where fallbacks are configured)
 
 ### ChatGPT / GPT-5.x
 
@@ -107,8 +108,8 @@ Every entry below: anchor each instruction to a path — never a global instruct
 - Agentic — runs tools, edits files, executes commands autonomously. Structure per Template H: starting state + target state + allowed/forbidden actions + stop conditions + checkpoints
 - Stop conditions are MANDATORY — runaway loops are the biggest credit killer
 - Every steer in the [Claude entry](#claude-claudeai-claude-api) applies — scope bounding, length, and above all the no-self-verification rule; effort and thinking depth are harness-managed, so never hardcode an effort level or thinking budget
-- Delegates to subagents readily on Claude 5 — cap it rather than request it: *"Delegate only for large, genuinely independent tracks of work. Don't delegate what you can finish in a handful of tool calls, and don't use subagents to verify your own work. Keep spawn counts low."*
-- Narrates readily during agentic work. If cadence matters, describe the shape you want instead of banning updates: *"Say in one sentence what you're about to do before your first tool call; while working, update only on something important or a change of direction; lead your final message with the outcome."*
+- Delegation bias differs by model. Opus 5 over-delegates — cap it: *"Delegate only for large, genuinely independent tracks of work. Don't delegate what you can finish in a handful of tool calls. Keep spawn counts low."* Fable 5.1's parallel subagents are dependable — say when delegation is wanted and let it keep working while they run: *"Delegate independent subtasks to subagents and keep working while they run; intervene if one goes off track or lacks context."* On either model, never use a subagent to verify its own work.
+- Narration cadence differs by model — Opus 5 narrates readily, Fable 5.1 goes quiet during long tool chains — so describe the shape you want rather than banning or demanding updates: *"Say in one sentence what you're about to do before your first tool call; while working, update on something important or a change of direction; close with a short recap that stands on its own — what you found, what you did, what's next."*
 - Human review triggers required: "Stop and ask before deleting any file, adding any dependency, or affecting the database schema"
 
 ### Claude Code (plan mode)

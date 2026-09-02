@@ -174,8 +174,8 @@ Pause and ask for human review when:
 - The task requires changes outside the stated scope
 
 Reporting:
-Lead your final message with the outcome, followed by a summary of every file changed.
-While working, speak up on something important or a change of direction — no per-step status lines.
+Say in a line what you're about to do before the first tool call; while working, speak up on something important or a change of direction.
+Lead your final message with the outcome, followed by a summary of every file changed — a recap that stands on its own for a reader who saw none of the work.
 ```
 
 ## Template I — Visual Descriptor

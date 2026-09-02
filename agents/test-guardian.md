@@ -1,6 +1,6 @@
 ---
 name: test-guardian
-description: Monitors test coverage gaps when testable code is added or modified. Does not write tests — only flags what needs testing.
+description: Monitors test coverage gaps when testable code is added or modified — runs the project's test and coverage commands and reports untested code, suite failures, and structural barriers to testing. Does not write tests or change files — only flags what needs testing.
 model: opus
 tools: Read, Bash, Glob, Grep
 ---

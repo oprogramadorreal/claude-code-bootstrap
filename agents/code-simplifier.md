@@ -1,6 +1,6 @@
 ---
 name: code-simplifier
-description: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Focuses on recently modified code unless instructed otherwise.
+description: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Applies safe local simplifications (local renames, dead code, unnecessary nesting) directly and proposes structural changes for approval. Focuses on recently modified code unless instructed otherwise; not for behavior changes or new features.
 model: opus
 tools: Read, Write, Edit, Glob, Grep
 ---
