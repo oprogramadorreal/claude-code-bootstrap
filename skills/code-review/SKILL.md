@@ -73,7 +73,7 @@ Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/constraint-doc-loading.md` and 
 
 Present a brief context summary (docs loaded, docs missing with fallback status, project type), then proceed immediately to Step 5 — do not wait for confirmation.
 
-## Step 5: Parallel Multi-Agent Review (5–7 agents)
+## Step 5: Multi-Lens Review
 
 The table below is the list of lenses this review has to cover. How many contexts you cover them in is yours to size.
 
@@ -91,7 +91,7 @@ When you do fan out, launch every applicable agent as a `general-purpose` Agent 
 | 6 — Test Guardian | Test coverage gaps, structural barriers to testability | `test-guardian.md` |
 | 7 — Contracts Reviewer | Backward compatibility, type safety, versioning, encapsulation | `contracts-reviewer.md` |
 
-Agents 1–5 always run. Agent 6 runs when test infrastructure is detected (`.claude/docs/testing.md` or a subproject `docs/testing.md` exists). Agent 7 runs when any changed file matches a contract pattern — directory patterns: `api/`, `routes/`, `controllers/`, `endpoints/`, `handlers/`, `graphql/`, `proto/`, `grpc/`; file patterns: `*.dto.*`, `*.schema.*`, `*.contract.*`, `openapi.*`, `swagger.*`, `*.proto`, `*.graphql`, `*.gql`. No match → skip Agent 7 entirely.
+Lenses 1–5 always apply, inline or by agent. Lens 6 (Agent 6) applies when test infrastructure is detected (`.claude/docs/testing.md` or a subproject `docs/testing.md` exists). Lens 7 (Agent 7) applies when any changed file matches a contract pattern — directory patterns: `api/`, `routes/`, `controllers/`, `endpoints/`, `handlers/`, `graphql/`, `proto/`, `grpc/`; file patterns: `*.dto.*`, `*.schema.*`, `*.contract.*`, `openapi.*`, `swagger.*`, `*.proto`, `*.graphql`, `*.gql`. No match → skip it entirely.
 
 **Prompt assembly**: read the prompt files from `$CLAUDE_PLUGIN_ROOT/skills/code-review/agents/`, plus `agents/shared-constraints.md` for the shared quality bar and output format. Compose per "Prompt assembly at dispatch time" in `$CLAUDE_PLUGIN_ROOT/references/agent-architecture.md`. For Agent 3, replace the `<!-- dispatcher: ... -->` line in `guideline-reviewer.md` with the concrete doc paths resolved in Step 4 for this project's layout.
 

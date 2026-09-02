@@ -20,7 +20,3 @@ Apply the Intent-vs-Implementation Check from `shared-constraints.md` within you
 ## Output
 
 Use the output format in `shared-constraints.md`, adding **Test file:** (recommended test file path). **Category:** Test Gap | Structural Barrier | Code Quality | Intent Mismatch.
-
-## Exclusions
-
-Do NOT write test code — only identify gaps.

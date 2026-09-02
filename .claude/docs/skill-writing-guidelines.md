@@ -46,7 +46,7 @@ Current models already do these. Instructing them again costs tokens and can deg
 
 - Imperative steps, consistent terminology (one term per concept), no time-sensitive content.
 - Output templates stay plain: headings, bold, blockquotes — no decorative emoji, no hand-rolled "[Step N/M]" progress lines.
-- For parallel-agent steps, say to launch them in a single message — that instruction is about parallelism, not head count. Cap the fan-out rather than mandate it: current models delegate readily on their own, so a step that always spawns N agents will spawn them on inputs one pass would cover. Name the lenses that must be covered, give a floor below which the skill does them inline, and let the model size the rest.
+- For parallel-agent steps, say to launch them in a single message — that instruction is about parallelism, not head count. Size the fan-out to the input rather than mandating a count: a step that always spawns N agents spawns them on inputs one pass would cover, and how readily a model delegates on its own changes between releases, so the input-size floor is the rule that survives. Name the lenses that must be covered, give a floor below which the skill does them inline, and let the model size the rest.
 - Don't instruct Claude to narrate or transcribe its reasoning; ask for conclusions and rationale.
 - Calibrate authored deliverables. A skill that writes a document states its target length once, where the template is defined (`brainstorm`'s "keep the spec under 200 lines" is the model). Current models write long by default, and an uncalibrated document fills with filler sections and restated summaries.
 
