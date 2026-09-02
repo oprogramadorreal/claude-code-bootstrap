@@ -59,7 +59,7 @@ When you do fan out, launch all 4 agents as `general-purpose` Agent tool calls i
 
 | Agent | Prompt file | Finds |
 |---|---|---|
-| 1 — Guideline Compliance | `agents/guideline-reviewer.md` | Explicit doc violations with exact rule citations |
+| 1 — Guideline Compliance | `agents/guideline-reviewer.md` | Explicit doc violations, each citing the rule it breaks |
 | 2 — Testability Analyzer | `agents/testability-analyzer.md` | Structural barriers to unit testing |
 | 3 — Consistency Analyzer | `agents/consistency-analyzer.md` | Cross-file duplication, inconsistency, drift |
 | 4 — Code Simplifier | `agents/code-simplifier.md` | Unnecessary complexity, naming, dead code |

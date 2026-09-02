@@ -337,7 +337,7 @@ The plan should include:
 
 - Express orchestration as **intent**, in natural language — open with "Run a workflow to…" (the scaffold below does). The prompt must clearly ask for a workflow of parallel agents, not a turn-by-turn task
 - Describe the task, the quality bar (e.g. "cross-check findings before reporting"), and the required output. A pattern-type hint (fan-out / pipeline / cross-agent corroboration) is optional preference, never a prescribed phase plan with agent counts
-- Scope is MANDATORY (cost + runaway risk): bound the target set and give an early-stop condition. The runtime auto-caps each run at 16 concurrent / 1,000 total agents — fixed limits, not knobs the prompt sets; the prompt's job is only to keep the target set from sprawling
+- Scope is MANDATORY (cost + runaway risk): bound the target set and give an early-stop condition. Concurrency and total-agent caps are the runtime's own fixed limits, not knobs the prompt sets or needs to restate; the prompt's job is only to keep the target set from sprawling
 - Permissions: workflow subagents run with edits auto-approved (acceptEdits) regardless of session mode. For analysis/audit work the prompt MUST say "read-only: do not edit, write, move, or delete any file; report findings only." (Opposite of Template M, which omits guardrails because plan mode enforces read-only)
 - Do NOT put an approval or cost line in the prompt — Claude Code shows a launch-time approval with the planned phases on its own. Tell the *user* about the approval gate and token cost in the SKILL.md Step 7 handoff instead
 
@@ -353,7 +353,7 @@ Quality bar: [intent only — e.g. "be thorough: cover every item in scope"; "ha
 Scope:
 - In scope: [explicit targets].  Out of scope: [skip].
 - Mode: [READ-ONLY — do NOT edit, write, move, or delete any file; report findings only.  OR  agents may edit only within <path>; do NOT touch <forbidden>]. (Workflow agents auto-approve edits regardless of session mode — state this explicitly.)
-- Stop early if [condition]; keep work bounded to the in-scope targets above. (The runtime auto-caps each run at 16 concurrent / 1,000 total agents — you don't set these.)
+- Stop early if [condition]; keep work bounded to the in-scope targets above.
 
 Output: [exact shape — e.g., one markdown report grouping findings by file with file:line evidence].
 ```
