@@ -67,16 +67,30 @@ both — the docs as repo paths.
 Write a short prompt in that register (minimal is better here — the lead agent
 decides the specifics).
 
-Give the lead agent the goal and the bar, but let it choose the approach. Tell
-it to divide the goal into the smallest pieces that can be improved and judged
-independently. For each piece, it should fan out a builder and, every round,
-a separate critic with fresh context.
+Give the lead agent the goal and the bar, but let it choose the approach.
+State the goal as a destination and do not enumerate its aspects, even when
+the user did: a list of aspects in the goal sentence becomes the
+decomposition, and that is the lead agent's call. Tell it to divide the goal
+into the smallest pieces that can be improved and judged independently — a
+piece is independent only if its builder can work without waiting on or
+overwriting another builder's files; anything less is merged or sequenced
+before the pieces are set. One builder takes each piece through every round:
+it gets the critic's gap verbatim and chooses the fix, which the lead never
+writes for it. Every round, a separate critic with fresh context judges the
+piece.
 
-Every critic prompt carries the resolved bar materials themselves — the paths,
-URL, or command — plus the artifact under judgment, and nothing from the
-builder: not its report, its reasoning, or its round history. A critic that
-cannot open the bar grades from memory, which is the builder-grades-itself
-failure this loop exists to prevent.
+Each piece's critic prompt is written once, before its first round, kept on
+the progress page, and sent every round with only the artifact paths changed.
+It carries the resolved bar materials themselves — the paths, URL, or
+command — plus the artifact under judgment, and nothing from the builder: not
+its report, its reasoning, or its round history. A critic that cannot open
+the bar grades from memory, which is the builder-grades-itself failure this
+loop exists to prevent. The lead agent is the other route to that failure,
+because it reads every builder report and writes every critic prompt: so the
+remit is never narrowed after a verdict, what a builder found reaches a
+critic only as a file it can open and measure — never as a conclusion or an
+exclusion — and a verdict the lead disputes goes to the user as a
+disagreement, not back to the critic as a new rule.
 
 Critics judge the artifact as a user would meet it — run, rendered, executed —
 never the builder's summary, and never source review alone when the work is
@@ -84,11 +98,16 @@ visual or behavioral. Anything presented as computed — metrics, simulation
 output, live data — must trace to real computation: staged output that merely
 looks right is a gap, not a pass.
 
-Each critic ends with one of two verdicts as its final line: exactly
-**beats the bar**, or the single biggest remaining gap, which goes back for
-another round. It compares directly against the bar — blind A/B when the
-artifacts allow it, side by side otherwise. A piece is done when its critic
-returns *beats the bar*.
+Each critic compares ours against the bar unlabeled — blind A/B when the
+artifacts allow it, side by side otherwise; never an older and a newer
+version of our own work, which measures the round, not the bar — and writes
+its verdict to its own file under `.claude/gauntlet/`, named by piece and
+round, ending with one of two final lines: exactly **beats the bar**, or the
+single biggest remaining gap, which goes back for another round. A gap is a
+way the bar beats ours; checks the bar cannot show — interaction,
+robustness, window sizes — belong in the remit from round one or in the test
+suite, never added round by round. The progress page copies every verdict
+from its file. A piece is done when its critic's file reads *beats the bar*.
 
 Pieces that individually beat the bar can still disagree with each other, so
 when every piece is done, a fresh integration critic judges the assembled
@@ -105,27 +124,29 @@ while its tests fail.
 
 The run never touches the default branch: before the first edit, the lead
 agent creates and switches to a descriptively named feature branch (a
-worktree made at confirmation already is one). Each piece is committed when
-its critic returns *beats the bar* and the suite is green — focused commits
-at judged milestones, never one giant commit at the end — and the run never
-pushes, merges, or opens a PR unless the user asked for it.
+worktree made at confirmation already is one). Each piece is committed, with
+its verdict files and the progress page, when its critic returns *beats the
+bar* and the suite is green — focused commits at judged milestones, never
+one giant commit at the end — and the run never pushes, merges, or opens a
+PR unless the user asked for it.
 
 Have the lead agent maintain a simple live progress page that shows the work
 evolving over time — a rendered HTML page when the work is visual, markdown
 otherwise — at `.claude/gauntlet-progress.html` or `.md`. Keep the goal, the
-resolved bar, this prompt, and every piece's rounds and verdicts in it, and
-write it before dispatching each round, so it doubles as the anchor a later
-session resumes from.
+resolved bar, this prompt, every piece's critic prompt, and every piece's
+rounds and verdicts in it, and write it before dispatching each round, so it
+doubles as the anchor a later session resumes from.
 
 Do not prescribe the architecture, exact decomposition, or a fixed number of
 rounds. Keep the prompt short, but short is a budget for phrasing, not licence
-to drop guarantees: fresh-context critics, the bar materials in every critic
-prompt, the two-way verdict, judging the running artifact, the anti-staging
-rule, the integration critic, and the branch-and-commit rules all survive to
-the final draft. Short also has a number: keep the prompt under 2,000
-characters, because the /goal
-handoff must fit this exact prompt plus a completion condition into /goal's
-4,000-character message cap, and the condition needs the rest.
+to drop guarantees: one builder per piece, fresh-context critics, the frozen
+remit, the bar materials in every critic prompt, ours-against-the-bar
+comparison, the verdict file with its two-way final line, judging the
+running artifact, the anti-staging rule, the integration critic, and the
+branch-and-commit rules all survive to the final draft. Short also has a
+number: keep the prompt under 2,500 characters, because the /goal handoff
+must fit this exact prompt plus an opening instruction and a completion
+condition into /goal's 4,000-character message cap, and those need the rest.
 
 ## 3. Confirm and run
 

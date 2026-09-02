@@ -29,30 +29,30 @@ paragraph.
 
 The condition, in a few lines: a small per-turn evaluator keeps the session
 alive until the condition holds — it reads only the conversation and runs no
-tools, a keep-alive floor, not a judge; the fresh-context critics stay the
-only judges. So every turn ends by pasting the progress page's
-piece/round/verdict table, each critic's latest verdict verbatim, the tail
-of the test output with its exit status, and the current branch with its
-`git status --porcelain` output. The goal is met ONLY when every piece in
-the table has its critic's final-line verdict reading exactly "beats the
-bar", the integration critic says the same of the assembled whole, the suite
-exits 0 on a feature branch whose porcelain status is clean, and all of it is
-shown in the most recent turn. The table is never empty once pieces are
-chosen — and the goal is never met while it is empty — and no piece may be
-removed, renamed, or merged to satisfy the condition (splitting one into
-finer pieces is fine; each new piece starts with no verdict); the lead
-agent's own assessment never counts. A plateau is not completion: report it
-plainly each turn and keep working on the rest until the
-user stops the goal — how to stop lives in their checklist, never in this
-message. In a testless project drop the test clauses from condition and
-evidence alike.
+tools, a keep-alive floor, not a judge, and its per-turn reason is a nudge to
+keep going, never a gap; the fresh-context critics stay the only judges. So
+every turn ends by pasting the progress page's piece/round/verdict table,
+the tail of the test output with its exit status, and the current branch
+with its `git status --porcelain` output. The goal is met ONLY when every
+piece in the table has a verdict copied from its critic's own file whose
+final line reads exactly "beats the bar", the integration critic's file says
+the same of the assembled whole, the suite exits 0 on a feature branch whose
+porcelain status is clean, and all of it is shown in the most recent turn.
+The table is never empty once pieces are chosen — and the goal is never met
+while it is empty — and no piece may be removed, renamed, or merged to
+satisfy the condition (splitting one into finer pieces is fine; each new
+piece starts with no verdict); the lead agent's own assessment never counts.
+A plateau is not completion: report it plainly each turn and keep working on
+the rest until the user stops the goal — how to stop lives in their
+checklist, never in this message. In a testless project drop the test
+clauses from condition and evidence alike.
 
 ## Gate on a real count
 
 `/goal` rejects any condition — everything after the `/goal ` prefix — over
 4,000 characters, so the count is a gate, not advice: write the body to a
 temp file and `wc -c` it before printing anything. Under 4,000 is the hard
-line, ~3,000 the target (`wc -c` counts bytes, which over-counts multi-byte
+line, ~3,500 the target (`wc -c` counts bytes, which over-counts multi-byte
 text — an error on the safe side). Over budget: first delete anything the
 body says twice — an abandoned draft paragraph left beside its re-draft is
 how real messages have overflowed — then move detail into the seeded
@@ -77,6 +77,9 @@ Print the message with this checklist above it, paste last:
 - stop with `/goal clear` — Esc only interrupts the turn, the goal stays armed
   until cleared; bare `/goal` shows spend; the goal survives `--resume`;
   `/clear` kills it
+- the evaluator can also clear the goal on its own by ruling the condition
+  impossible; if the status ever shows that, re-paste the same message — a
+  hard bar is not an impossible condition
 - when the goal clears, commit any leftovers (`/optimus:commit`), then review
   the run's branch (`/optimus:code-review` in a fresh conversation)
 
