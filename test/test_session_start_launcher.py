@@ -21,7 +21,10 @@ def _session_start_command():
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows cmd.exe behavior")
 @pytest.mark.parametrize("location", ["outside-repo", "repo-root", "subdirectory"])
-def test_windows_launcher_uses_git_bash_when_bash_is_not_on_path(tmp_path, location):
+@pytest.mark.parametrize(
+    "noisy_bash", [False, True], ids=["system-path", "utf16-error"]
+)
+def test_windows_launcher_falls_back_to_git_bash(tmp_path, location, noisy_bash):
     git = shutil.which("git")
     if git is None:
         pytest.skip("git is not installed")
@@ -45,6 +48,17 @@ def test_windows_launcher_uses_git_bash_when_bash_is_not_on_path(tmp_path, locat
     assert shutil.which("git", path=env["PATH"]) is not None
     # System32 may hold WSL's bash.exe, which cannot open C:/ paths. The
     # launcher must recover from that too, so its presence is not asserted away.
+    if noisy_bash:
+        # Reproduce WSL's UTF-16 stdout diagnostic without depending on whether
+        # the machine has WSL or a Linux distribution installed.
+        stub_dir = tmp_path / "bash stub"
+        stub_dir.mkdir()
+        (stub_dir / "bash.cmd").write_text(
+            '@echo off\n"%COMSPEC%" /d /u /c echo Simulated WSL startup failure\n'
+            "exit /b 1\n",
+            encoding="utf-8",
+        )
+        env["PATH"] = os.pathsep.join([str(stub_dir), env["PATH"]])
 
     plugin_root = str(REPO_ROOT)
     env["PLUGIN_ROOT"] = plugin_root
@@ -98,7 +112,16 @@ def test_windows_launcher_uses_git_bash_when_bash_is_not_on_path(tmp_path, locat
 
     assert result.returncode == 0, result.stderr
     assert direct.returncode == 0, direct.stderr
-    assert result.stdout == direct.stdout
+    # WSL may emit UTF-16 startup diagnostics before Git Bash takes over.
+    # Compare the entire hook output, retaining missing/extra-line detection.
+    startup_output, marker, hook_output = result.stdout.partition("[optimus]")
+    assert marker, result.stdout
+    assert marker + hook_output == direct.stdout
+    if noisy_bash:
+        assert (
+            startup_output.replace("\x00", "").strip()
+            == "Simulated WSL startup failure"
+        )
     if location == "subdirectory":
         assert "Testing docs missing" not in result.stdout
         assert "Not initialized" not in result.stdout
