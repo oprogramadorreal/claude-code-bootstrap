@@ -58,57 +58,13 @@ if [ -n "$bad_shebangs" ]; then
   printf "       Non-portable shebangs:\n%s" "$bad_shebangs"
 fi
 
-# --- 3. SKILL.md frontmatter ---
-echo "[SKILL.md frontmatter]"
-fm_errors=""
-while IFS= read -r f; do
-  # Strip CR for Windows compat; read first line directly to avoid broken pipe
-  first_line=$(head -1 "$f" | tr -d '\r')
-  if [[ "$first_line" != "---" ]]; then
-    fm_errors+="  $f: missing frontmatter delimiter\n"
-    continue
-  fi
-  # Extract frontmatter between --- delimiters (lines 2..closing ---)
-  frontmatter=$(sed -n '2,/^---$/{ /^---$/d; p; }' "$f" | tr -d '\r')
-  # Check description
-  if ! grep -q '^description:' <<< "$frontmatter"; then
-    fm_errors+="  $f: missing description field\n"
-  fi
-  # Check disable-model-invocation
-  if ! grep -q 'disable-model-invocation: true' <<< "$frontmatter"; then
-    fm_errors+="  $f: missing disable-model-invocation: true\n"
-  fi
-  # Check no name field (would shadow builtins)
-  if grep -q '^name:' <<< "$frontmatter"; then
-    fm_errors+="  $f: has 'name:' field (shadows builtin commands)\n"
-  fi
-  # Check argument-hint is quoted (bare brackets parse as a YAML list)
-  if grep -q '^argument-hint:[[:space:]]*\[' <<< "$frontmatter"; then
-    fm_errors+="  $f: argument-hint value must be quoted (bare brackets parse as a YAML list)\n"
-  fi
-  # Check rendered description length against the 1024-char platform cap
-  # (handles both single-line and folded ">-" scalars)
-  description=$(awk '
-    /^description:[[:space:]]*>-?[[:space:]]*$/ { folded = 1; next }
-    folded {
-      if ($0 ~ /^[[:space:]]/) {
-        line = $0; sub(/^[[:space:]]+/, "", line)
-        text = (text == "" ? line : text " " line); next
-      }
-      folded = 0
-    }
-    /^description:[[:space:]]/ { text = $0; sub(/^description:[[:space:]]*/, "", text) }
-    END { print text }
-  ' <<< "$frontmatter")
-  if [ "${#description}" -gt 1024 ]; then
-    fm_errors+="  $f: description exceeds the 1024-char platform cap (${#description})\n"
-  fi
-done < <(find ./skills -name 'SKILL.md' -not -path './.git/*')
-check "SKILL.md frontmatter valid" test -z "$fm_errors"
-if [ -n "$fm_errors" ]; then
-  # %b, not %s: fm_errors is accumulated with literal \n escapes (as in every
-  # sibling check), which %s would print verbatim on one run-on line.
-  printf "       Issues:\n%b" "$fm_errors"
+# --- 3. Parsed skill metadata for both hosts ---
+echo "[Skill metadata]"
+if metadata_errors=$(python scripts/validate_skill_metadata.py 2>&1); then
+  check "Skill YAML is valid and disables implicit invocation on both hosts" true
+else
+  check "Skill YAML is valid and disables implicit invocation on both hosts" false
+  printf '       Requires Python and requirements-dev.txt. Issues:\n%s\n' "$metadata_errors"
 fi
 
 # --- 4. No ref in marketplace.json ---
@@ -388,11 +344,9 @@ for skill_dir in ./skills/*/; do
   if [ ! -f "$skill_dir/README.md" ]; then
     missing_files+="  skills/$skill_name/README.md\n"
   fi
-  # Codex twin of `disable-model-invocation: true`: Claude Code ignores this
-  # file and Codex ignores the frontmatter field, so "never auto-trigger" has
-  # to be said in both places or it silently stops holding on one host.
-  if ! grep -q '^  allow_implicit_invocation: false' "$skill_dir/agents/openai.yaml" 2>/dev/null; then
-    missing_files+="  skills/$skill_name/agents/openai.yaml (policy.allow_implicit_invocation: false)\n"
+  # Section 3 parses the invocation policy; this section checks the layout.
+  if [ ! -f "$skill_dir/agents/openai.yaml" ]; then
+    missing_files+="  skills/$skill_name/agents/openai.yaml\n"
   fi
 done
 check "Every skill has SKILL.md, README.md, and agents/openai.yaml" test -z "$missing_files"

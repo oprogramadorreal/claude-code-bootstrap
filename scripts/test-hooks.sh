@@ -183,6 +183,7 @@ assert_output_contains "Names the plugin root under Codex" "Plugin root: $PLUGIN
 assert_output_contains "Names slash-form skill mentions in the Codex mapping" "/optimus:<skill>" "$output"
 assert_output_contains "Names dollar-form skill mentions in the Codex mapping" "\$optimus:<skill>" "$output"
 assert_output_contains "Maps AskUserQuestion to plain text under Codex" "AskUserQuestion" "$output"
+assert_output_not_contains "Does not promise formatter hooks under Codex" "and auto-format hooks." "$output"
 assert_exit_zero "Exits 0 under Codex" "$hook_status"
 cleanup_fixture
 
@@ -199,6 +200,16 @@ run_session_start_codex
 assert_output_contains "Still names the plugin root when configured" "Plugin root: $PLUGIN_ROOT" "$output"
 assert_output_not_contains "No init nag when configured under Codex" "optimus:init" "$output"
 assert_exit_zero "Exits 0 when configured under Codex" "$hook_status"
+cleanup_fixture
+
+echo "[session-start: Claude-only hook update is not recommended under Codex]"
+setup_fixture
+mkdir -p .claude/hooks
+printf '#!/usr/bin/env bash\n# HOOK_VERSION: 0\nexit 0\n' > .claude/hooks/restrict-paths.sh
+run_session_start_codex
+assert_output_not_contains "Does not recommend an unsupported permissions skill" '$optimus:permissions' "$output"
+assert_output_not_contains "Does not report an inactive Claude hook as stale" 'older than the plugin' "$output"
+assert_exit_zero "Exits 0 with a stale Claude hook under Codex" "$hook_status"
 cleanup_fixture
 
 echo "[session-start: stray PLUGIN_ROOT that is not the plugin's is not Codex]"
