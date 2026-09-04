@@ -180,6 +180,8 @@ run_session_start_codex
 assert_output_contains "Recommends \$optimus:init under Codex" "\$optimus:init" "$output"
 assert_output_not_contains "Drops the /optimus: form under Codex" "/optimus:init" "$output"
 assert_output_contains "Names the plugin root under Codex" "Plugin root: $PLUGIN_ROOT" "$output"
+assert_output_contains "Names slash-form skill mentions in the Codex mapping" "/optimus:<skill>" "$output"
+assert_output_contains "Names dollar-form skill mentions in the Codex mapping" "\$optimus:<skill>" "$output"
 assert_output_contains "Maps AskUserQuestion to plain text under Codex" "AskUserQuestion" "$output"
 assert_exit_zero "Exits 0 under Codex" "$hook_status"
 cleanup_fixture

@@ -12,13 +12,13 @@ Remove files installed by `/optimus:init` and `/optimus:permissions`. Does NOT u
 Two boundaries the steps below cannot express, and that override anything else this skill does:
 
 - **NEVER** touch test files, test directories, or test configuration — even if `/optimus:unit-test` created them
-- **NEVER** touch anything outside `.claude/`, subproject `CLAUDE.md`, subproject `docs/`, workspace-root `CLAUDE.md`, and the `optimus:pointer` block in root `AGENTS.md`
+- **NEVER** touch anything outside `.claude/`, subproject `CLAUDE.md`, subproject `docs/`, workspace-root `CLAUDE.md`, and the `optimus:pointer` blocks in project- or workspace-root `AGENTS.md`
 
 `.claude/settings.json` is never deleted outright — Step 4 removes optimus entries surgically and keeps user content.
 
 ## Step 1 — Detect and inventory
 
-If the current directory has no `.git/` directory, read `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` and apply it; in a multi-repo workspace, process each child repo independently and also check for a workspace-root `CLAUDE.md` (local-only). Otherwise it is a single repo — possibly a monorepo whose subprojects have their own init-installed `CLAUDE.md` and `docs/` files.
+If the current directory has no `.git/` directory, read `$CLAUDE_PLUGIN_ROOT/skills/init/references/multi-repo-detection.md` and apply it; in a multi-repo workspace, process each child repo independently and also check for workspace-root `CLAUDE.md` and `AGENTS.md` files (local-only). Otherwise it is a single repo — possibly a monorepo whose subprojects have their own init-installed `CLAUDE.md` and `docs/` files.
 
 Inventory optimus-managed files, listing only what exists:
 
@@ -27,9 +27,9 @@ Inventory optimus-managed files, listing only what exists:
 - `.claude/hooks/format-*` — the plugin's template hooks, any custom `format-<language>.sh` from init's unsupported-stack fallback, and the legacy `format-python.py` installed by optimus <= 3.5.0
 - `.claude/hooks/restrict-paths.sh`
 - `.claude/agents/{code-simplifier,test-guardian}.md` (legacy — installed by older optimus versions)
-- Root `AGENTS.md` when it contains the `<!-- optimus:pointer -->` block (init writes it for Codex)
+- Project- or workspace-root `AGENTS.md` when it contains the `<!-- optimus:pointer -->` block (init writes it for Codex)
 - Monorepo: subproject `CLAUDE.md` and `docs/{coding-guidelines,testing,styling,architecture}.md` (subproject `coding-guidelines.md` exists only when init found the subproject's conventions differ from root — classify it via the near-exact-pair rule below)
-- Multi-repo: the above per child repo, plus the workspace-root `CLAUDE.md`
+- Multi-repo: the above per child repo, plus the workspace-root `CLAUDE.md` and pointer block in workspace-root `AGENTS.md`
 
 If no optimus files are found anywhere → say "Nothing to reset — no optimus files found" and stop. If `.claude/.optimus-version` is missing, warn that the project may not have been initialized by optimus, but proceed.
 
@@ -75,7 +75,7 @@ On Abort: confirm nothing was removed and stop.
    - `hooks.PreToolUse`: same rule for entries referencing `.claude/hooks/restrict-paths.sh`.
    - `permissions.allow` / `permissions.deny`: remove entries matching the permissions template's lists. Also remove server-level entries of the exact form `mcp__<server-name>` only for servers declared in the relevant project root's `.mcp.json` (per child repo in multi-repo workspaces). Preserve tool-level entries (e.g. `mcp__github__get_issue`) and entries for undeclared servers — those are the user's. If no `.mcp.json` exists, leave all `mcp__*` entries untouched.
    - Prune arrays, keys, and objects that became empty. If the whole object is now `{}`, delete the file; otherwise write it back with 2-space indentation.
-3. Root `AGENTS.md`: delete it when it is exactly the pointer block; otherwise remove only the block — both markers, the line between them, and the blank line before it — and keep everything else.
+3. Each project- or workspace-root `AGENTS.md`: delete it when it is exactly the pointer block; otherwise remove only the block — both markers, the line between them, and the blank line before it — and keep everything else.
 
 ## Step 5 — Clean up and report
 

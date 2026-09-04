@@ -105,11 +105,21 @@ Fill every template placeholder with real detected values — no `[placeholder]`
 
 **Step 4b — subproject CLAUDE.md files (monorepo only):** for each subproject except root-as-project/root-as-member (root CLAUDE.md covers those), use `$CLAUDE_PLUGIN_ROOT/skills/init/templates/subproject-claude.md`: commands run from its directory, that package's own gotchas, local `docs/` routes, parent monorepo named in the opening line.
 
-**Step 4c — Codex pointer (root `AGENTS.md`):** Codex reads a root `AGENTS.md` and never `.claude/CLAUDE.md`. When the project shows Codex use — a `.codex/` directory or an existing root `AGENTS.md` — or this session runs under Codex (the session-start note says "Running under Codex"), make sure root `AGENTS.md` carries the block below: appended to an existing file, never replacing user content, or as the whole of a new one; skip when already present. Multi-repo: per child repo.
+**Step 4c — Codex pointers (root `AGENTS.md`):** Codex reads a root `AGENTS.md` and never a CLAUDE.md automatically. When the project shows Codex use — a `.codex/` directory or an existing root `AGENTS.md` — or this session runs under Codex (the session-start note says "Running under Codex"), append the applicable block below to an existing file without replacing user content, or use it as the whole of a new file; skip when that block is already present. For a single project or monorepo, use the project block at its root. For a multi-repo workspace, use the project block in every child repo and the workspace block at the workspace root so a Codex session started there loads the local project map.
+
+Project or child repo:
 
 ```
 <!-- optimus:pointer -->
 Agent instructions for this project live in `.claude/CLAUDE.md`. Read it first; it routes to the docs under `.claude/docs/`.
+<!-- /optimus:pointer -->
+```
+
+Multi-repo workspace root:
+
+```
+<!-- optimus:pointer -->
+Agent instructions for this workspace live in `CLAUDE.md`. Read it first; it maps the child repositories.
 <!-- /optimus:pointer -->
 ```
 

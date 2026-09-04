@@ -13,7 +13,7 @@ What makes a good developer productive in a codebase also makes Claude Code prod
 - **Skill-authoring projects as a first-class stack** — detects AI-agent instruction projects (Claude Code plugins, prompt libraries, agent frameworks) via a structural signal and installs [`skill-writing-guidelines.md`](templates/docs/skill-writing-guidelines.md); review/refactor skills then route markdown instruction files through that lens via the shared [`constraint-doc-loading.md`](references/constraint-doc-loading.md) contract.
 - **Test infrastructure** — detects or installs (with approval) a test framework and coverage tooling, runs a health check, and provisions testing docs. Enables the plugin's [test-guardian](../../agents/test-guardian.md) agent and the skills that depend on a test command.
 - **Documentation freshness** — audits generated docs on re-run (Outdated / Missing / Accurate / User-added, with user-added content always preserved) and syncs project docs (README, CONTRIBUTING, ...) against source code, fixing only factual contradictions.
-- **Monorepo & multi-repo workspace support** — hierarchical CLAUDE.md files for monorepos; fully self-contained `.claude/` per repo in multi-repo workspaces.
+- **Monorepo & multi-repo workspace support** — hierarchical CLAUDE.md files for monorepos; fully self-contained `.claude/` per repo plus workspace-root context pointers in multi-repo workspaces.
 
 ## Quick Start
 
@@ -55,8 +55,9 @@ Auto-installed per detected stack: Python (black + isort), Node.js (prettier), R
 | `.claude/docs/architecture.md` | Architecture map (complex structure or skill authoring; optional Skill Architecture section) |
 | `.claude/hooks/` | Auto-format hooks per detected stack |
 | `.claude/.optimus-version` | Plugin version that last generated these files (written only by init) |
+| `AGENTS.md` | Codex pointer to the applicable project or workspace CLAUDE.md (when Codex use is detected) |
 
-**Monorepo:** each subproject also gets its own `CLAUDE.md` and scoped `docs/`. **Multi-repo workspace:** each repo gets its own complete `.claude/` (version-controlled), plus a lightweight local-only workspace CLAUDE.md.
+**Monorepo:** each subproject also gets its own `CLAUDE.md` and scoped `docs/`. **Multi-repo workspace:** each repo gets its own complete `.claude/` and Codex pointer (version-controlled), plus lightweight local-only workspace `CLAUDE.md` and `AGENTS.md` pointer files.
 
 ## Customization
 
