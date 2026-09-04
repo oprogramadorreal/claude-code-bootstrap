@@ -3,13 +3,13 @@
 </div>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-3.10.4-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-3.11.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/Claude_Code-1.0.33+-blueviolet" alt="Claude Code">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform">
 </p>
 
-**A Claude Code plugin that sets up your project for effective AI-assisted engineering.**
+**A Claude Code plugin that sets up your project for effective AI-assisted engineering.** Also runs under [OpenAI Codex](#using-with-openai-codex).
 
 ---
 
@@ -95,6 +95,33 @@ AI assistants also tend toward [sycophancy](https://blog.scielo.org/en/2026/03/1
 optimus-claude works alongside official tools, not against them. Use Anthropic's official [code-review](https://github.com/anthropics/claude-code/tree/main/plugins/code-review) plugin for post-push PR review, the builtin `/simplify` for per-change cleanup (complemented by `/optimus:refactor` for project-wide restructuring), Claude Code's native [dynamic workflows](https://code.claude.com/docs/en/workflows) for one-off background multi-agent builds and sweeps, and [built-in sandboxing](https://code.claude.com/docs/en/sandboxing) for autonomous execution with OS-level isolation.
 
 Claude Code's [`/goal`](https://code.claude.com/docs/en/goal) is complementary to `/optimus:deep`: reach for `/goal` for lightweight "work until a condition holds" in a single session; reach for `/optimus:deep` for the deterministic, resumable fix loop — fresh subagent per iteration, test bisection that reverts the exact fix that broke the build, and on-disk state that survives across sessions.
+
+## Using with OpenAI Codex
+
+Codex (CLI or desktop app, 0.143 or newer) loads this plugin through the same manifest, marketplace, and hooks files Claude Code uses, so the skills run unchanged. Support is best-effort: Claude Code is the reference host and the only one CI exercises.
+
+```shell
+/plugin marketplace add oprogramadorreal/optimus-claude
+```
+
+Then enable `optimus` from `/plugins` and invoke skills with a `$` mention: `$optimus:init`, `$optimus:commit suggest`, `$optimus:deep review`. Headless runs use `codex exec` where this README says `claude -p`.
+
+What differs under Codex:
+
+- Skills never auto-trigger on either host (`agents/openai.yaml` carries the Codex-side flag), and they stay out of the model's skill list until you mention one.
+- Confirmation prompts arrive as plain-text questions instead of the pick-list Claude Code shows; answer in the chat.
+- `/optimus:init` also writes a short root `AGENTS.md` pointing Codex at `.claude/CLAUDE.md`, because Codex reads `AGENTS.md` and not `.claude/CLAUDE.md`. `/optimus:reset` removes it.
+- Codex runs up to 6 subagents at once by default (`agents.max_threads`), so `/optimus:code-review` may run its seventh lens after the first six.
+
+Claude Code-only, with the Codex-native substitute:
+
+| Feature | Why | Under Codex |
+|---|---|---|
+| `/optimus:permissions` | Writes Claude Code permission rules and a hook that parses Claude Code tool inputs | `sandbox_mode` and `approval_policy` in `config.toml` |
+| `/optimus:dream` | Prunes Claude Code's per-project auto-memory | Codex `/memories` |
+| Formatter hooks installed by `/optimus:init` | Codex edit hooks receive the patch text, not a file path | Pre-commit hooks or editor format-on-save; the guidelines docs still apply |
+| `/optimus:gauntlet` "Copy as /goal prompt" | `/goal` is a Claude Code feature | Run the in-session lead-agent path |
+| `optimus:code-simplifier` and `optimus:test-guardian` agents | Codex loads custom agents from TOML, not from plugins | `/optimus:refactor` and `/optimus:unit-test`, whose in-skill agents do run |
 
 ## Troubleshooting
 

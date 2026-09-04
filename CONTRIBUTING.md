@@ -39,7 +39,9 @@ skills/<skill-name>/
 ├── templates/                # YAML, markdown, and shell templates (optional)
 │   ├── hooks/                # PostToolUse hook scripts
 │   └── docs/                 # Documentation templates
-├── agents/                   # Individual agent prompt files, one per agent plus shared-constraints.md (optional)
+├── agents/
+│   ├── openai.yaml           # Codex twin of disable-model-invocation (required; validate.sh checks it)
+│   └── *.md                  # Agent prompt files, one per agent plus shared-constraints.md (optional)
 └── references/               # Technical reference docs consumed by the skill (optional)
 ```
 
@@ -55,9 +57,10 @@ Two tiers, no inheritance. The rules — and the dispatch-time path-substitution
 
 1. Create `skills/<skill-name>/SKILL.md` with YAML frontmatter and step-by-step instructions
 2. Create `skills/<skill-name>/README.md` with user-facing documentation
-3. Add templates and references as needed in subdirectories
-4. Add the skill to the Skills section in the root `README.md`
-5. Add the skill directory to the project-structure tree in this file — `scripts/validate.sh` asserts every `skills/` directory appears in both the root `README.md` and this tree
+3. Copy any sibling's `agents/openai.yaml` — it tells Codex the skill never auto-triggers, the way `disable-model-invocation: true` tells Claude Code
+4. Add templates and references as needed in subdirectories
+5. Add the skill to the Skills section in the root `README.md`
+6. Add the skill directory to the project-structure tree in this file — `scripts/validate.sh` asserts every `skills/` directory appears in both the root `README.md` and this tree
 
 Follow the conventions visible in existing skills — study `skills/worktree/` for a minimal example or `skills/init/` for a full-featured one.
 
@@ -74,6 +77,8 @@ The routing rule itself lives in `references/shared-agent-constraints.md` under 
 `.claude-plugin/plugin.json` carries the plugin identity and version; bump it for any meaningful change and update the version badge in `README.md` to match — `validate.sh` asserts the two agree on PR branches.
 
 `.claude-plugin/marketplace.json` is how Claude Code discovers the plugin. Its `source` object accepts an optional `ref` to pin plugin code to a branch, tag, or SHA; that is only for the feature-branch testing flow below, and `validate.sh` fails while it is present.
+
+`.agents/plugins/marketplace.json` is the same catalog for OpenAI Codex. Codex reads it before the Claude one, installs the plugin from `./`, and then accepts `.claude-plugin/plugin.json` as a legacy-format manifest — so there is deliberately no `.codex-plugin/plugin.json`: one manifest, one version. `validate.sh` pins the plugin name across the two marketplace files. Codex also runs `hooks/hooks.json` as-is; its command starts with `bash ` because Codex runs Windows hooks through `cmd.exe`, where a bare script path does not execute, and Claude Code's hook schema rejects unknown keys such as Codex's `commandWindows`, so one command has to serve both.
 
 ## Testing
 
@@ -168,6 +173,18 @@ Not intended for CI — run locally before merging significant changes.
 
 **Adding expected outputs:** Edit `test/expected-outputs.yaml` to define what files a skill should create and what content they should contain. The format supports `files_exist`, `files_contain`, `files_not_exist`, `files_not_modified`, and `output_contains` assertions.
 
+### Codex smoke test (local)
+
+Codex support is best-effort and has no CI. Run this once per minor release, and whenever a change touches `hooks/`, the two marketplace files, or how a skill resolves the plugin root or dispatches subagents. One Codex session on a throwaway repo, about an hour:
+
+1. **Install** — `/plugin marketplace add oprogramadorreal/optimus-claude@<branch>`, enable `optimus` from `/plugins`, confirm the skills list.
+2. **Invocation and paths** — `$optimus:commit suggest` in a repo with a change: the skill loads, and the model finds `skills/commit/references/…` from its `$CLAUDE_PLUGIN_ROOT` reference.
+3. **Hook** — start a fresh session in an uninitialized repo: the not-initialized line shows the `$optimus:init` form plus the "Running under Codex" line naming the plugin root. Repeat once on Windows.
+4. **Fan-out** — `$optimus:code-review` on a diff large enough for parallel lenses; note whether the seventh spawn queues, fails, or serializes against `agents.max_threads`.
+5. **Harness** — `$optimus:deep review --yes src/<path>`: plugin-root resolution, the harness CLI, and the subagent JSON round trip.
+6. **Auto-trigger** — ask a plain question that matches a skill description ("write a commit message for this"); Codex must not pull the skill in unasked.
+7. **Claude Code regression** — `claude --plugin-dir .` in the same repo still fires the session hook, and `bash scripts/validate.sh && bash scripts/test-hooks.sh` pass.
+
 ## Testing a feature branch
 
 This plugin's marketplace catalog and plugin code live in the same repository. Claude Code fetches them in two separate steps, which means testing from a feature branch requires changes at both levels:
@@ -230,6 +247,14 @@ cd optimus-claude && git checkout your-branch-name
 ```
 
 No `ref` field is needed for local paths — Claude Code reads directly from the working tree.
+
+### Codex
+
+Codex takes the branch on the marketplace-add command and installs the plugin from that same checkout, so no `ref` edit is needed:
+
+```shell
+/plugin marketplace add oprogramadorreal/optimus-claude@your-branch-name
+```
 
 ## Version bumping
 

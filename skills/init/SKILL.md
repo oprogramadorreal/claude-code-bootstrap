@@ -105,6 +105,14 @@ Fill every template placeholder with real detected values — no `[placeholder]`
 
 **Step 4b — subproject CLAUDE.md files (monorepo only):** for each subproject except root-as-project/root-as-member (root CLAUDE.md covers those), use `$CLAUDE_PLUGIN_ROOT/skills/init/templates/subproject-claude.md`: commands run from its directory, that package's own gotchas, local `docs/` routes, parent monorepo named in the opening line.
 
+**Step 4c — Codex pointer (root `AGENTS.md`):** Codex reads a root `AGENTS.md` and never `.claude/CLAUDE.md`. When the project shows Codex use — a `.codex/` directory or an existing root `AGENTS.md` — or this session runs under Codex (the session-start note says "Running under Codex"), make sure root `AGENTS.md` carries the block below: appended to an existing file, never replacing user content, or as the whole of a new one; skip when already present. Multi-repo: per child repo.
+
+```
+<!-- optimus:pointer -->
+Agent instructions for this project live in `.claude/CLAUDE.md`. Read it first; it routes to the docs under `.claude/docs/`.
+<!-- /optimus:pointer -->
+```
+
 ## Step 5: Install Formatter Hooks
 
 Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/formatter-setup.md` and install the applicable hooks so files are auto-formatted after every Edit/Write (templates in `$CLAUDE_PLUGIN_ROOT/skills/init/templates/hooks/`; supported: Python, Node.js, Rust, Go, C#/.NET, Java, C/C++, Dart/Flutter — other stacks via `$CLAUDE_PLUGIN_ROOT/skills/init/references/unsupported-stack-fallback.md`). Hooks are Generated files; `settings.json` follows its merge semantics. External formatters not already in deps → ask the user before installing.
@@ -154,7 +162,7 @@ Two gates before reporting, both against state this skill did not author on its 
 - **Hooks match their source** — each template-based hook in `.claude/hooks/` is byte-identical to its template (`diff` them); custom hooks from the unsupported-stack fallback follow the shell-hook pattern and that reference's validation rules.
 - **settings.json survived the merge** — every format hook *this skill* installed has a matching `hooks.PostToolUse` entry, and every `PostToolUse` entry resolves to a file that exists in `.claude/hooks/`. Hooks owned by another skill are out of scope: `/optimus:permissions` installs `restrict-paths.sh` into that same directory and registers it under **PreToolUse**, so comparing the directory listing against `PostToolUse` "in both directions" reads it as a missing entry — and "fixing" that breaks it. Every pre-existing section must also be intact: this file was merged into user state, so a dropped entry silently disables a hook with no other symptom.
 
-Then sweep the files you wrote for surviving `[placeholder]` text and unresolved template HTML comments — each file's line-1 identity comment is the only `<!--` allowed to remain. Fix any failure before reporting.
+Then sweep the files you wrote for surviving `[placeholder]` text and unresolved template HTML comments — each file's line-1 identity comment and the `optimus:pointer` markers in `AGENTS.md` are the only `<!--` allowed to remain. Fix any failure before reporting.
 
 **Write the plugin version** to `.claude/.optimus-version` after all checks pass — version string only (e.g., `3.0.0`), read from `$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json`; per repo in multi-repo workspaces. Only init ever writes this file.
 

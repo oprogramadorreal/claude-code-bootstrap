@@ -116,6 +116,15 @@ echo "[Manifests]"
 check "No ref field in marketplace.json" \
   bash -c '! grep -q "\"ref\"" .claude-plugin/marketplace.json'
 
+# The Codex marketplace mirrors the Claude one. Codex reads
+# .agents/plugins/marketplace.json first and installs the plugin from "./",
+# then finds .claude-plugin/plugin.json as a legacy manifest — so the plugin
+# name there has to be the one plugin.json declares, or Codex installs a
+# plugin it cannot find skills for. Read without jq so the pin never SKIPs.
+plugin_name=$(sed -n 's/^ *"name": *"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -1)
+check "Codex marketplace installs plugin '$plugin_name' from ./" \
+  bash -c "grep -q '\"name\": \"$plugin_name\"' .agents/plugins/marketplace.json && grep -q '\"path\": \"./\"' .agents/plugins/marketplace.json"
+
 # --- 4b. Dogfooded hook matches the shipped template ---
 # .claude/hooks/restrict-paths.sh is a copy of the template users install, and
 # only the template is exercised by scripts/test-hooks.sh. Nothing else pins them
@@ -176,6 +185,7 @@ if command -v jq &>/dev/null; then
   check "plugin.json has name" bash -c 'jq -e ".name" .claude-plugin/plugin.json >/dev/null'
   check "plugin.json has version" bash -c 'jq -e ".version" .claude-plugin/plugin.json >/dev/null'
   check "plugin.json has description" bash -c 'jq -e ".description" .claude-plugin/plugin.json >/dev/null'
+  check "Codex marketplace.json is valid JSON" jq empty .agents/plugins/marketplace.json
 else
   echo "  SKIP  plugin.json checks (jq not installed)"
 fi
@@ -243,9 +253,11 @@ echo "[Orphan detection]"
 orphan_files=""
 # Build the set of all reference and template files
 while IFS= read -r f; do
-  # Skip README.md files in skill dirs (they're documentation, not referenced by SKILL.md via CLAUDE_PLUGIN_ROOT)
+  # Skip README.md files in skill dirs (they're documentation, not referenced by
+  # SKILL.md via CLAUDE_PLUGIN_ROOT) and agents/openai.yaml (Codex reads it by
+  # location; no skill file names it — section 12 checks its presence instead).
   basename_f=$(basename "$f")
-  if [ "$basename_f" = "README.md" ]; then
+  if [ "$basename_f" = "README.md" ] || [ "$basename_f" = "openai.yaml" ]; then
     continue
   fi
   # Normalize: strip leading ./
@@ -376,8 +388,14 @@ for skill_dir in ./skills/*/; do
   if [ ! -f "$skill_dir/README.md" ]; then
     missing_files+="  skills/$skill_name/README.md\n"
   fi
+  # Codex twin of `disable-model-invocation: true`: Claude Code ignores this
+  # file and Codex ignores the frontmatter field, so "never auto-trigger" has
+  # to be said in both places or it silently stops holding on one host.
+  if ! grep -q '^  allow_implicit_invocation: false' "$skill_dir/agents/openai.yaml" 2>/dev/null; then
+    missing_files+="  skills/$skill_name/agents/openai.yaml (policy.allow_implicit_invocation: false)\n"
+  fi
 done
-check "Every skill has SKILL.md and README.md" test -z "$missing_files"
+check "Every skill has SKILL.md, README.md, and agents/openai.yaml" test -z "$missing_files"
 if [ -n "$missing_files" ]; then
   printf "       Missing files:\n%b" "$missing_files"
 fi
@@ -415,8 +433,11 @@ if command -v jq &>/dev/null; then
   # Check that referenced command scripts exist
   hook_missing=""
   while IFS= read -r cmd; do
-    # Extract script path from command string (strip quotes and $CLAUDE_PLUGIN_ROOT)
-    script_path=$(printf '%s' "$cmd" | sed "s|.*'\${CLAUDE_PLUGIN_ROOT}/\([^']*\)'.*|\1|" | sed 's|"${CLAUDE_PLUGIN_ROOT}/||;s|"||g')
+    # Extract script path from command string (strip quotes, $CLAUDE_PLUGIN_ROOT,
+    # and the explicit `bash ` interpreter: Codex runs Windows hooks through
+    # cmd.exe, where a bare script path does not execute, and the same form runs
+    # unchanged under Claude Code's Git Bash and sh).
+    script_path=$(printf '%s' "$cmd" | sed "s|.*'\${CLAUDE_PLUGIN_ROOT}/\([^']*\)'.*|\1|" | sed 's|^bash ||; s|"${CLAUDE_PLUGIN_ROOT}/||;s|"||g')
     if [ -n "$script_path" ] && [ ! -f "./$script_path" ]; then
       hook_missing+="  $script_path\n"
     fi

@@ -22,3 +22,12 @@ The directory layout is discoverable; what follows is what reading it does not t
 ## Agents and references
 
 Two tiers, no inheritance: `agents/` holds standalone user-invocable agents, and `skills/<name>/agents/` holds prompt files scoped to one skill, each carrying its criteria inline. `deep` owns none — it dispatches base skills, which own the analysis agents. The dispatch-time path-substitution rule is in `references/agent-architecture.md`; the rest of the authoring rules are in `.claude/docs/skill-writing-guidelines.md`, which `validate.sh` enforces the two-level reference depth cap for.
+
+## Two hosts, one plugin
+
+OpenAI Codex loads this plugin through the Claude Code files: it accepts `.claude-plugin/plugin.json` as a legacy manifest, reads `.agents/plugins/marketplace.json` (installing from `./`), and runs `hooks/hooks.json` with `CLAUDE_PLUGIN_ROOT` set. What the layout does not tell you:
+
+- **`hooks/session-start` is the only host-aware code.** It detects Codex by `PLUGIN_ROOT` being set and equal to `CLAUDE_PLUGIN_ROOT` (Codex sets both, Claude Code only the latter), then switches skill mentions to the `$optimus:` form and appends one line carrying the plugin root and the AskUserQuestion mapping. Skills stay host-neutral by construction: the absolute-path dispatch rule is what lets the same text drive Codex's `spawn_agent` as well as the Agent tool.
+- **`skills/*/agents/openai.yaml` is metadata, not an agent.** It carries Codex's `allow_implicit_invocation: false`, the twin of `disable-model-invocation: true`; the prompt files beside it are unrelated to it.
+- **The hook command in `hooks/hooks.json` starts with `bash ` for Codex**, which runs Windows hooks through `cmd.exe`, where a bare script path does not execute. Claude Code's schema rejects unknown keys, so the platform-specific `commandWindows` Codex offers is deliberately not used; one command runs under Git Bash, `sh`, and `cmd.exe`.
+- **Claude Code-only by design:** `permissions`, `dream`, init's formatter hooks (Codex edit hooks carry patch text, not `file_path`), gauntlet's `/goal` handoff, and the two plugin-level agents. The README's Codex section is the user-facing list — extend it before extending the code.

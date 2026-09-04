@@ -16,6 +16,7 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that runs 
 | `... --no-commit` | Skip checkpoint commits (also allows starting with a dirty working tree) |
 | `... --allow-red-baseline` | review/refactor only: proceed even if the pre-loop test baseline is red |
 | `claude -p "/optimus:deep review --yes"` | Headless / CI; auto-confirms the upfront prompt |
+| `codex exec "$optimus:deep review --yes"` | Same, under OpenAI Codex |
 
 Natural-language scope text is recorded as intent but does not filter — only an existing path restricts the run.
 
