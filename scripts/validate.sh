@@ -433,14 +433,15 @@ if command -v jq &>/dev/null; then
   # Check that referenced command scripts exist
   hook_missing=""
   while IFS= read -r cmd; do
-    # Extract script path from command string (strip quotes, $CLAUDE_PLUGIN_ROOT,
-    # and the explicit `bash ` interpreter: Codex runs Windows hooks through
-    # cmd.exe, where a bare script path does not execute, and the same form runs
-    # unchanged under Claude Code's Git Bash and sh).
-    script_path=$(printf '%s' "$cmd" | sed "s|.*'\${CLAUDE_PLUGIN_ROOT}/\([^']*\)'.*|\1|" | sed 's|^bash ||; s|"${CLAUDE_PLUGIN_ROOT}/||;s|"||g')
-    if [ -n "$script_path" ] && [ ! -f "./$script_path" ]; then
-      hook_missing+="  $script_path\n"
-    fi
+    # Check every plugin-relative path the command names, whatever wraps it.
+    # SessionStart names its script twice: once for the direct `bash` launch
+    # and once inside the git-alias fallback Codex's cmd.exe host needs when
+    # bash.exe is not on PATH.
+    while IFS= read -r script_path; do
+      if [ -n "$script_path" ] && [ ! -f "./$script_path" ]; then
+        hook_missing+="  $script_path\n"
+      fi
+    done < <(printf '%s' "$cmd" | grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[^"[:space:]\\]+' | sed 's|^${CLAUDE_PLUGIN_ROOT}/||' | sort -u)
   done < <(jq -r '.. | .command? // empty' hooks/hooks.json 2>/dev/null)
   check "Hook command scripts exist" test -z "$hook_missing"
   if [ -n "$hook_missing" ]; then

@@ -21,6 +21,7 @@ test.cmd                                                                        
 
 - `test/harness-common/` — tests for the orchestrator CLI (`scripts/harness_common/cli.py`) and its shared modules.
 - `test/test_format_python_hook.py` — tests for the repo's `.claude/hooks/format-python.sh` PostToolUse hook. This module shells out to `bash`, so it needs Git Bash on Windows; it resolves the interpreter through `harness_common.runner._find_bash` rather than a bare `bash`, because a WSL `bash` earlier on PATH cannot open Windows-style paths. Most cases plant stub formatters and need nothing installed — only the few that exercise real formatting need `black`/`isort` in the repo's `.venv` or on PATH, and they skip when absent.
+- `test/test_session_start_launcher.py` — Windows integration test for the command in `hooks/hooks.json`; reduces `PATH` to `Git\cmd` plus `System32` and runs the command through `cmd.exe` to prove the git fallback reaches Git's bundled Bash without a PATH-visible `bash.exe`. Skips on non-Windows runners and without Git for Windows. No test covers the Claude Code launch path (Git Bash): verify hook command changes with `claude --plugin-dir <plugin> --debug-file <log> -p ...` and grep the log for `Hook SessionStart`.
 - Test files mirror the module they cover (`test_<module>.py`).
 
 ## Writing Tests

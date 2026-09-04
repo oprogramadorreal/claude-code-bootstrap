@@ -98,7 +98,7 @@ Claude Code's [`/goal`](https://code.claude.com/docs/en/goal) is complementary t
 
 ## Using with OpenAI Codex
 
-Codex (CLI or desktop app, 0.143 or newer) loads this plugin through the same manifest, marketplace, and hooks files Claude Code uses, so the skills run unchanged. Support is best-effort: Claude Code is the reference host and the only one CI exercises.
+Codex (CLI or desktop app, 0.143 or newer) loads this plugin through the same manifest, marketplace, and hooks files Claude Code uses, so the skills run unchanged. Support is best-effort: Claude Code is the reference host, and the only Codex-specific CI check is that the hook command launches from `cmd.exe` on Windows.
 
 ```shell
 /plugin marketplace add oprogramadorreal/optimus-claude
@@ -110,6 +110,7 @@ What differs under Codex:
 
 - Skills never auto-trigger on either host (`agents/openai.yaml` carries the Codex-side flag), and they stay out of the model's skill list until you mention one.
 - Confirmation prompts arrive as plain-text questions instead of the pick-list Claude Code shows; answer in the chat.
+- On Windows, the session-start hook tries `bash` first and falls back to Git for Windows' bundled Bash through `git.exe`, so Git must be on `PATH` but `bash.exe` need not be.
 - `/optimus:init` also writes a short root `AGENTS.md` pointing Codex at `.claude/CLAUDE.md`, because Codex reads `AGENTS.md` and not `.claude/CLAUDE.md`. `/optimus:reset` removes it.
 - Codex runs up to 6 subagents at once by default (`agents.max_threads`), so `/optimus:code-review` may run its seventh lens after the first six.
 
