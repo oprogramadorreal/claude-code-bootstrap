@@ -150,8 +150,8 @@ condition into /goal's 4,000-character message cap, and those need the rest.
 
 ## 3. Confirm and run
 
-Show the user the bar and the prompt. Recommend ultracode for serious runs
-(`/effort` → ultracode). On "Start the run" it must be set before approving
+Show the user the bar and the prompt. Under Claude Code, recommend ultracode
+for serious runs (`/effort` → ultracode). On "Start the run" it must be set before approving
 because the run starts immediately after; on "Copy as /goal prompt" the user
 sets it later, in the fresh session.
 

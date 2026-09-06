@@ -39,7 +39,9 @@ skills/<skill-name>/
 ├── templates/                # YAML, markdown, and shell templates (optional)
 │   ├── hooks/                # PostToolUse hook scripts
 │   └── docs/                 # Documentation templates
-├── agents/                   # Individual agent prompt files, one per agent plus shared-constraints.md (optional)
+├── agents/
+│   ├── openai.yaml           # Codex twin of disable-model-invocation (required; validate.sh checks it)
+│   └── *.md                  # Agent prompt files, one per agent plus shared-constraints.md (optional)
 └── references/               # Technical reference docs consumed by the skill (optional)
 ```
 
@@ -55,9 +57,10 @@ Two tiers, no inheritance. The rules — and the dispatch-time path-substitution
 
 1. Create `skills/<skill-name>/SKILL.md` with YAML frontmatter and step-by-step instructions
 2. Create `skills/<skill-name>/README.md` with user-facing documentation
-3. Add templates and references as needed in subdirectories
-4. Add the skill to the Skills section in the root `README.md`
-5. Add the skill directory to the project-structure tree in this file — `scripts/validate.sh` asserts every `skills/` directory appears in both the root `README.md` and this tree
+3. Copy any sibling's `agents/openai.yaml` — it tells Codex the skill never auto-triggers, the way `disable-model-invocation: true` tells Claude Code
+4. Add templates and references as needed in subdirectories
+5. Add the skill to the Skills section in the root `README.md`
+6. Add the skill directory to the project-structure tree in this file — `scripts/validate.sh` asserts every `skills/` directory appears in both the root `README.md` and this tree
 
 Follow the conventions visible in existing skills — study `skills/worktree/` for a minimal example or `skills/init/` for a full-featured one.
 
@@ -75,6 +78,8 @@ The routing rule itself lives in `references/shared-agent-constraints.md` under 
 
 `.claude-plugin/marketplace.json` is how Claude Code discovers the plugin. Its `source` object accepts an optional `ref` to pin plugin code to a branch, tag, or SHA; that is only for the feature-branch testing flow below, and `validate.sh` fails while it is present.
 
+`.agents/plugins/marketplace.json` is the same catalog for OpenAI Codex. Codex reads it before the Claude one, installs the plugin from `./`, and accepts `.claude-plugin/plugin.json` as a legacy manifest — one manifest, one version. `validate.sh` pins the plugin name across the catalogs. Codex runs the shared `hooks/hooks.json` after the user trusts it. Its command launches Bash directly, falling back to Git for Windows' bundled shell when necessary. The fallback restores the invoking directory through `GIT_PREFIX`; `.claude/docs/architecture.md` explains the cross-host constraints on this command.
+
 ## Testing
 
 This plugin is mostly markdown-based. Testing is split into layers: fast structural checks, hook tests, and Python unit tests that run in CI, and slower skill execution tests that run locally.
@@ -90,6 +95,8 @@ This removes existing fixtures, regenerates them, and runs all skill/fixture com
 ### Structural validation (CI)
 
 Runs on every push and PR to master. Catches broken cross-references, syntax errors in templates, stale README entries, and other invariants.
+
+Install `requirements-dev.txt` in your development environment first and activate it. Skill frontmatter and `agents/openai.yaml` are parsed by `scripts/validate_skill_metadata.py`; missing Python or PyYAML fails this check rather than silently skipping invocation-policy validation. CI installs the same requirements.
 
 ```shell
 bash scripts/validate.sh
@@ -168,6 +175,16 @@ Not intended for CI — run locally before merging significant changes.
 
 **Adding expected outputs:** Edit `test/expected-outputs.yaml` to define what files a skill should create and what content they should contain. The format supports `files_exist`, `files_contain`, `files_not_exist`, `files_not_modified`, and `output_contains` assertions.
 
+### Codex smoke test (local)
+
+Codex support is experimental. CI checks metadata and launcher behavior; it does not run model-driven workflows. Record the date, exact plugin commit/version, host version, OS, and pass/fail/untested results. No minimum Codex version is claimed. Use this small core check before promoting the core workflows beyond experimental:
+
+1. **Install, trust, invoke** — in an authenticated Codex CLI, run `/plugin marketplace add oprogramadorreal/optimus-claude@feat/codex-support` for PR #180, enable `optimus` from `/plugins`, and review/trust its hooks. In a fresh session, confirm `[optimus] Running under Codex` and the installed plugin path appear without a hook error. In a disposable repo with a change, run `$optimus:commit suggest`; it must read its bundled references and suggest a message without writing. A separate plain "write a commit message for this" request must not auto-load the skill.
+2. **Init, routing, preservation, reset** — generate fixtures with `bash scripts/generate-fixtures.sh monorepo multi-repo`. In `test/fixtures/monorepo-project`, run `$optimus:init`; add user text/comments outside its `AGENTS.md` block and custom Claude hooks/settings, then re-run init. Compare the original hook/settings bytes and surrounding user text; only one pointer block should remain. In fresh root and package sessions ask "Which test command applies here? Read the project instructions without editing." Confirm the applicable CLAUDE.md files were read. Run `$optimus:reset` and confirm only the managed pointer is removed from `AGENTS.md`. Repeat the routing/pointer check at `test/fixtures/multi-repo-workspace` and inside a child repo. Also verify `$optimus:jira TEST-1` without MCP tools stops at Codex setup guidance, and `permissions`/`dream` explain their exclusion without changing Claude state.
+3. **Shared hook regression** — run `bash scripts/validate.sh`, `bash scripts/test-hooks.sh`, and `python -m pytest test/`. Start `claude --plugin-dir <absolute-plugin-path> --debug-file <log> -p 'Reply OK.'` from root and nested disposable directories with different initialization state; compare hook events, confirm all 19 skills and both agents load, and verify a fully initialized Claude project adds no hook context. Check native Windows loading as well, including Codex with only `Git\cmd` and `System32` on PATH. A hook that runs before an authentication failure is loader evidence only.
+
+**Optional orchestration checks:** keep these unverified/experimental until needed; they are not prerequisites for the documented experimental core. Run `$optimus:code-review` with more lenses than available agent slots and verify no lens is dropped. For deep, run `$optimus:deep review --yes src/<path>` across multiple iterations, interrupt between iterations, then resume with `$optimus:deep review --yes --resume`; inspect checkpoints and the final report. Exercise coverage's paired phases separately. For unattended use, run the README's `codex exec --sandbox workspace-write` example in an initialized fixture after granting the necessary host permissions, and verify actual edits, Git snapshots, and tests. Optimus `--yes` does not grant host permissions. Gauntlet's in-session path needs its own builder/critic execution check; do not offer Claude `/goal`, `/workflows`, or ultracode as Codex features.
+
 ## Testing a feature branch
 
 This plugin's marketplace catalog and plugin code live in the same repository. Claude Code fetches them in two separate steps, which means testing from a feature branch requires changes at both levels:
@@ -230,6 +247,14 @@ cd optimus-claude && git checkout your-branch-name
 ```
 
 No `ref` field is needed for local paths — Claude Code reads directly from the working tree.
+
+### Codex
+
+Codex takes the branch on the marketplace-add command and installs the plugin from that same checkout, so no `ref` edit is needed:
+
+```shell
+/plugin marketplace add oprogramadorreal/optimus-claude@your-branch-name
+```
 
 ## Version bumping
 
