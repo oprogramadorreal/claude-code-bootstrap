@@ -114,7 +114,9 @@ def test_windows_launcher_falls_back_to_git_bash(tmp_path, location, noisy_bash)
     assert direct.returncode == 0, direct.stderr
     # WSL may emit UTF-16 startup diagnostics before Git Bash takes over.
     # Compare the entire hook output, retaining missing/extra-line detection.
-    startup_output, marker, hook_output = result.stdout.partition("[optimus]")
+    startup_output, marker, hook_output = result.stdout.partition(
+        "Optimus session context:"
+    )
     assert marker, result.stdout
     assert marker + hook_output == direct.stdout
     if noisy_bash:
@@ -129,6 +131,40 @@ def test_windows_launcher_falls_back_to_git_bash(tmp_path, location, noisy_bash)
         assert "$optimus:init" in result.stdout
     assert "/optimus:<skill>" in result.stdout
     assert "$optimus:<skill>" in result.stdout
+
+
+@pytest.mark.parametrize("initialized", [False, True])
+def test_codex_context_is_not_misdetected_as_json(tmp_path, initialized):
+    bash = _find_bash()
+    if initialized:
+        docs = tmp_path / ".claude" / "docs"
+        docs.mkdir(parents=True)
+        (docs.parent / "CLAUDE.md").write_text("# Project", encoding="utf-8")
+        for name in ("coding-guidelines.md", "testing.md"):
+            (docs / name).write_text("# Configured", encoding="utf-8")
+    env = os.environ.copy()
+    env["PLUGIN_ROOT"] = env["CLAUDE_PLUGIN_ROOT"] = REPO_ROOT.as_posix()
+    if sys.platform == "win32":
+        git_root = Path(bash).parent.parent
+        env["PATH"] = os.pathsep.join(
+            [str(git_root / "usr" / "bin"), str(git_root / "bin"), env["PATH"]]
+        )
+    result = subprocess.run(
+        [bash, str(REPO_ROOT / "hooks" / "session-start")],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Running under Codex" in result.stdout
+    assert f"Plugin root: {REPO_ROOT.as_posix()}" in result.stdout
+    # Codex 0.153.4 routes leading '[' / '{' to its JSON parser. Plain text
+    # starting with [optimus] exits successfully but loses all hook context.
+    assert not result.stdout.lstrip().startswith(("[", "{"))
 
 
 def test_bash_launcher_preserves_claude_cwd_and_output(tmp_path):

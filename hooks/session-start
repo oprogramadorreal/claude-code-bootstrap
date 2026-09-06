@@ -151,6 +151,8 @@ fi
 if [ -n "$codex_host" ]; then
   output+="[optimus] Running under Codex. Plugin root: ${PLUGIN_ROOT} — skill text calls it \$CLAUDE_PLUGIN_ROOT. Map skill mentions from /optimus:<skill> to \$optimus:<skill>. Where a skill says AskUserQuestion, ask in plain text with numbered options and wait for the answer."$'\n'
   output+="[optimus] Under Codex, skip the Claude-only permissions and dream skills, formatter installation, and /goal or /workflows handoffs; report the limitation. Claude-specific plan-mode handoff instructions require manual adaptation."$'\n'
+  # Codex treats a leading '[' as JSON; our [optimus] labels are plain text.
+  output="Optimus session context:"$'\n'"$output"
 fi
 
 # Only output if there's something to report

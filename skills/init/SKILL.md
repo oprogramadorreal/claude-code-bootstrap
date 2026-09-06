@@ -9,6 +9,8 @@ disable-model-invocation: true
 
 Three classes govern every file this skill writes. Later steps name the class instead of restating the rules.
 
+Under Codex, preserve existing hooks/settings throughout this run; the Generated-file overwrite rule below does not apply to hooks.
+
 - **Generated** — `.claude/hooks/*` and `.claude/docs/coding-guidelines.md`: verbatim templates (or fallback hooks), never user-authored. Always overwrite silently, regardless of audit status.
 - **Customizable** — all `CLAUDE.md` files, `testing.md`, `styling.md`, `architecture.md`, `skill-writing-guidelines.md`: never silently overwrite. When the file exists, review-and-propose — compare against the template and detected state, apply only user-approved changes, preserve user-added sections.
 - **settings.json** — always merge, never overwrite: preserve `permissions` and any other custom sections. Do not create it when no hooks are installed and it doesn't already exist.
@@ -125,7 +127,7 @@ Agent instructions for this workspace live in `CLAUDE.md`. Read it first; it map
 
 ## Step 5: Install Formatter Hooks
 
-Under Codex, skip this step, preserve existing hooks/settings, and report automatic formatting as unsupported. The remaining documentation and test-infrastructure steps still apply.
+Under Codex, skip this step and report automatic formatting as unsupported. The remaining documentation and test-infrastructure steps still apply.
 
 Read `$CLAUDE_PLUGIN_ROOT/skills/init/references/formatter-setup.md` and install the applicable hooks so files are auto-formatted after every Edit/Write (templates in `$CLAUDE_PLUGIN_ROOT/skills/init/templates/hooks/`; supported: Python, Node.js, Rust, Go, C#/.NET, Java, C/C++, Dart/Flutter — other stacks via `$CLAUDE_PLUGIN_ROOT/skills/init/references/unsupported-stack-fallback.md`). Hooks are Generated files; `settings.json` follows its merge semantics. External formatters not already in deps → ask the user before installing.
 
